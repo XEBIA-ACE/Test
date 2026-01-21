@@ -1,64 +1,76 @@
-# Authentication Service
+# Notification Service
 
-A production-ready OAuth 2.0 authentication service built with Spring Boot, featuring JWT token management, Keycloak integration, and Redis-based session storage.
+A production-ready notification service built with Node.js and TypeScript, featuring Apache Kafka for message queuing, SendGrid for emails, Firebase Cloud Messaging for push notifications, WebSockets for real-time updates, and Redis for caching and rate limiting.
 
 ## Features
 
-- **OAuth 2.0 Authentication**: Industry-standard authentication protocol
-- **JWT Token Management**: Secure access and refresh token generation
-- **Keycloak Integration**: Enterprise-grade identity and access management
-- **Redis Session Storage**: High-performance session management and caching
-- **Spring Security**: Comprehensive security configuration
-- **RESTful API**: Clean, documented API endpoints
-- **OpenAPI/Swagger**: Interactive API documentation
-- **Health Checks & Metrics**: Production-ready observability with Actuator and Prometheus
-- **Docker Support**: Containerized deployment with Docker Compose
-- **Multi-Environment**: Separate configurations for dev, staging, and production
+- **Multi-Channel Notifications**: Email (SendGrid), Push (FCM), WebSocket, SMS support
+- **Apache Kafka Integration**: Asynchronous message processing with retry and DLQ
+- **Redis Caching**: High-performance caching and rate limiting
+- **WebSocket Server**: Real-time notification delivery
+- **Clean Architecture**: Clear separation of concerns with domain-driven design
+- **PostgreSQL Database**: Persistent notification storage with full audit trail
+- **RESTful API**: Well-documented endpoints with OpenAPI/Swagger
+- **Rate Limiting**: Protect against abuse with configurable limits
+- **Health Checks & Metrics**: Production-ready observability
+- **Docker Support**: Complete containerized deployment with docker-compose
+- **Scheduled Notifications**: Support for future-dated notifications
+- **Retry Mechanism**: Automatic retries with exponential backoff
+- **Dead Letter Queue**: Failed messages handling
 
 ## Technology Stack
 
-- **Java 17**
-- **Spring Boot 3.2.1**
-- **Spring Security**
-- **OAuth 2.0 & JWT**
-- **Keycloak 23.0.3**
-- **Redis 7.2**
-- **Maven**
-- **Docker & Docker Compose**
+- **Node.js 18** with **TypeScript**
+- **Express.js** - Web framework
+- **Apache Kafka** - Message queue
+- **SendGrid** - Email delivery
+- **Firebase Cloud Messaging** - Push notifications
+- **Socket.IO** - WebSocket implementation
+- **Redis** - Caching and rate limiting
+- **PostgreSQL** - Primary database
+- **Docker & Docker Compose** - Containerization
 
 ## Architecture
 
-The application follows Clean Architecture principles with clear separation of concerns:
+The application follows Clean Architecture principles with clear layer separation:
 
 ```
-src/main/java/com/authservice/
-├── api/                          # API Layer
-│   ├── controller/               # REST controllers
-│   ├── dto/                      # Data Transfer Objects
-│   └── exception/                # Exception handlers
-├── domain/                       # Domain Layer
-│   ├── model/                    # Domain entities
-│   ├── service/                  # Business logic
-│   └── exception/                # Domain exceptions
-└── infrastructure/               # Infrastructure Layer
-    ├── config/                   # Configuration classes
-    ├── repository/               # Data access
-    └── security/                 # Security filters
+src/
+├── domain/                      # Domain Layer
+│   ├── models/                  # Domain entities
+│   └── interfaces/              # Repository and service interfaces
+├── application/                 # Application Layer
+│   └── services/                # Business logic and use cases
+├── infrastructure/              # Infrastructure Layer
+│   ├── database/                # Database connection and repositories
+│   ├── cache/                   # Redis implementation
+│   ├── messaging/               # Kafka implementation
+│   ├── providers/               # Notification providers (Email, Push, WS)
+│   └── logging/                 # Logging configuration
+├── api/                         # API Layer
+│   ├── controllers/             # HTTP controllers
+│   ├── routes/                  # Route definitions
+│   ├── middleware/              # Express middleware
+│   └── swagger.ts               # API documentation
+└── config/                      # Configuration management
 ```
 
 ### Layer Responsibilities
 
-- **API Layer**: Handles HTTP requests, validation, and response formatting
-- **Domain Layer**: Contains business logic and domain models
-- **Infrastructure Layer**: Manages external integrations, persistence, and security
+- **Domain Layer**: Core business entities and interfaces (no dependencies)
+- **Application Layer**: Business logic, orchestration, and use cases
+- **Infrastructure Layer**: External integrations (DB, cache, queue, providers)
+- **API Layer**: HTTP interface, validation, and error handling
 
 ## Prerequisites
 
-- Java 17 or higher
-- Maven 3.8+
+- Node.js 18+ and npm 9+
 - Docker and Docker Compose (for containerized deployment)
-- Redis 7.2+ (if running locally)
-- Keycloak 23.0+ (if running locally)
+- PostgreSQL 15+ (if running locally)
+- Redis 7+ (if running locally)
+- Apache Kafka (if running locally)
+- SendGrid API key (for email notifications)
+- Firebase Admin SDK credentials (for push notifications)
 
 ## Getting Started
 
@@ -69,66 +81,57 @@ The easiest way to run the entire stack:
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd authentication-service
+cd notification-service
 
 # Copy environment file and configure
 cp .env.example .env
 
-# Start all services (Redis, Keycloak, Auth Service)
+# Edit .env with your SendGrid API key and Firebase credentials
+nano .env
+
+# Start all services (PostgreSQL, Redis, Kafka, Notification Service)
 docker-compose up -d
 
 # Check service status
 docker-compose ps
 
 # View logs
-docker-compose logs -f auth-service
+docker-compose logs -f notification-service
+
+# Run database migrations
+docker-compose exec notification-service npm run migrate
 ```
 
 The services will be available at:
-- **Authentication Service**: http://localhost:8080
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **Actuator**: http://localhost:8081/actuator
-- **Keycloak Admin**: http://localhost:8180 (admin/admin)
+- **Notification Service API**: http://localhost:3000
+- **Swagger UI**: http://localhost:3000/api-docs
+- **WebSocket Server**: ws://localhost:3001/notifications
+- **Health Check**: http://localhost:3000/health
+- **PostgreSQL**: localhost:5432
 - **Redis**: localhost:6379
+- **Kafka**: localhost:9092
 
 ### Option 2: Local Development
 
-Run the application locally with external dependencies:
+Run the application locally with Docker dependencies:
 
 ```bash
-# 1. Start Redis
-docker run -d -p 6379:6379 redis:7.2-alpine
+# 1. Start infrastructure services only
+docker-compose up -d postgres redis zookeeper kafka
 
-# 2. Start Keycloak
-docker run -d -p 8180:8080 \
-  -e KEYCLOAK_ADMIN=admin \
-  -e KEYCLOAK_ADMIN_PASSWORD=admin \
-  quay.io/keycloak/keycloak:23.0 start-dev
+# 2. Install dependencies
+npm install
 
 # 3. Configure environment
 cp .env.example .env
 # Edit .env with your configuration
 
-# 4. Build and run the application
-mvn clean install
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+# 4. Run database migrations
+npm run migrate
+
+# 5. Start the application in development mode
+npm run dev
 ```
-
-### Keycloak Setup
-
-Before using the authentication service, configure Keycloak:
-
-1. Access Keycloak Admin Console: http://localhost:8180
-2. Login with admin/admin
-3. Create a new realm: `authentication-service`
-4. Create a new client:
-   - Client ID: `auth-service-client`
-   - Client Protocol: `openid-connect`
-   - Access Type: `confidential`
-   - Valid Redirect URIs: `http://localhost:8080/*`
-   - Web Origins: `*`
-5. Get the client secret from the Credentials tab
-6. Update `KEYCLOAK_CLIENT_SECRET` in `.env` or `application.yml`
 
 ## Configuration
 
@@ -138,212 +141,240 @@ Key environment variables (see `.env.example` for all options):
 
 ```env
 # Application
-SPRING_PROFILES_ACTIVE=dev
-SERVER_PORT=8080
+NODE_ENV=development
+PORT=3000
+LOG_LEVEL=info
+
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=notification_service
+DB_USER=postgres
+DB_PASSWORD=postgres
 
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
-REDIS_PASSWORD=
 
-# Keycloak
-KEYCLOAK_AUTH_SERVER_URL=http://localhost:8180/auth
-KEYCLOAK_REALM=authentication-service
-KEYCLOAK_RESOURCE=auth-service-client
-KEYCLOAK_CLIENT_SECRET=your-client-secret-here
+# Kafka
+KAFKA_BROKERS=localhost:9092
+KAFKA_CLIENT_ID=notification-service
+KAFKA_GROUP_ID=notification-service-group
 
-# JWT
-JWT_SECRET=your-256-bit-secret-key-change-this-in-production
-JWT_EXPIRATION_MS=3600000
-JWT_REFRESH_EXPIRATION_MS=86400000
+# SendGrid
+SENDGRID_API_KEY=your_sendgrid_api_key_here
+SENDGRID_FROM_EMAIL=noreply@yourdomain.com
+SENDGRID_FROM_NAME=Notification Service
 
-# CORS
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
+# Firebase Cloud Messaging
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_PRIVATE_KEY_PATH=./firebase-admin-sdk.json
+
+# WebSocket
+WS_PORT=3001
+WS_CORS_ORIGIN=*
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Feature Flags
+ENABLE_EMAIL=true
+ENABLE_PUSH=true
+ENABLE_WEBSOCKET=true
 ```
 
-### Profiles
+### SendGrid Setup
 
-The application supports multiple profiles:
+1. Create a SendGrid account at https://sendgrid.com
+2. Generate an API key from Settings > API Keys
+3. Set `SENDGRID_API_KEY` in your `.env` file
+4. Configure sender email and name
 
-- **dev**: Development environment with debug logging
-- **prod**: Production environment with optimized settings
+### Firebase Cloud Messaging Setup
 
-Activate a profile:
-```bash
-# Via Maven
-mvn spring-boot:run -Dspring-boot.run.profiles=prod
-
-# Via JAR
-java -jar -Dspring.profiles.active=prod target/authentication-service-1.0.0.jar
-
-# Via environment variable
-export SPRING_PROFILES_ACTIVE=prod
-```
+1. Create a Firebase project at https://console.firebase.google.com
+2. Go to Project Settings > Service Accounts
+3. Generate a new private key
+4. Save the JSON file as `firebase-admin-sdk.json` in the project root
+5. Set `FIREBASE_PROJECT_ID` in your `.env` file
 
 ## API Documentation
 
 ### Swagger UI
 
 Interactive API documentation is available at:
-- http://localhost:8080/swagger-ui.html
+- http://localhost:3000/api-docs
 
 ### API Endpoints
 
-#### Authentication Endpoints
+#### Create Notification
 
-**Register User**
 ```http
-POST /api/v1/auth/register
+POST /api/v1/notifications
 Content-Type: application/json
 
 {
-  "username": "john.doe",
-  "email": "john.doe@example.com",
-  "password": "SecureP@ssw0rd",
-  "firstName": "John",
-  "lastName": "Doe"
-}
-```
-
-**Login**
-```http
-POST /api/v1/auth/login
-Content-Type: application/json
-
-{
-  "username": "john.doe",
-  "password": "SecureP@ssw0rd"
+  "type": "email",
+  "recipient": {
+    "email": "user@example.com",
+    "userId": "user-123"
+  },
+  "payload": {
+    "subject": "Welcome!",
+    "body": "Welcome to our service",
+    "data": {
+      "action": "welcome"
+    }
+  },
+  "priority": "high",
+  "scheduledAt": "2024-01-21T15:00:00Z"
 }
 ```
 
 Response:
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "550e8400-e29b-41d4-a716-446655440000",
-  "tokenType": "Bearer",
-  "expiresIn": 3600,
-  "user": {
+  "success": true,
+  "data": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "username": "john.doe",
-    "email": "john.doe@example.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "roles": ["USER"],
-    "enabled": true
+    "type": "email",
+    "status": "processing",
+    "priority": "high",
+    "createdAt": "2024-01-21T10:15:30Z"
   }
 }
 ```
 
-**Refresh Token**
-```http
-POST /api/v1/auth/refresh
-Content-Type: application/json
+#### Get Notification by ID
 
-{
-  "refreshToken": "550e8400-e29b-41d4-a716-446655440000"
-}
+```http
+GET /api/v1/notifications/{id}
 ```
 
-**Logout**
+#### Get Notifications by Status
+
 ```http
-POST /api/v1/auth/logout?sessionId=<session-id>
-Authorization: Bearer <access-token>
+GET /api/v1/notifications?status=sent&limit=50
 ```
 
-**Get Current User**
+#### Get Notifications by User
+
 ```http
-GET /api/v1/auth/me?userId=<user-id>
-Authorization: Bearer <access-token>
+GET /api/v1/notifications?userId=user-123&limit=50
+```
+
+#### Manually Send Notification
+
+```http
+POST /api/v1/notifications/{id}/send
 ```
 
 #### Health Check
 
 ```http
-GET /api/v1/health
+GET /health
 ```
 
 Response:
 ```json
 {
-  "status": "UP",
-  "timestamp": "2025-01-21T10:15:30",
-  "service": "authentication-service",
-  "version": "1.0.0",
+  "status": "ok",
+  "timestamp": "2024-01-21T10:15:30Z",
+  "uptime": 3600,
+  "service": "notification-service"
+}
+```
+
+#### Detailed Health Check
+
+```http
+GET /health/detailed
+```
+
+Response:
+```json
+{
+  "status": "ok",
   "dependencies": {
-    "redis": "UP"
+    "database": "healthy",
+    "redis": "healthy",
+    "kafka": "healthy"
   }
 }
 ```
 
-### Authentication
+### WebSocket Connection
 
-Protected endpoints require a Bearer token in the Authorization header:
+Connect to receive real-time notifications:
 
-```http
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```javascript
+import io from 'socket.io-client';
+
+const socket = io('http://localhost:3001', {
+  path: '/notifications'
+});
+
+// Register user to receive notifications
+socket.emit('register', 'user-123');
+
+// Listen for notifications
+socket.on('notification', (data) => {
+  console.log('Received notification:', data);
+});
+
+// Handle connection events
+socket.on('connect', () => {
+  console.log('Connected to notification server');
+});
+
+socket.on('disconnect', () => {
+  console.log('Disconnected from notification server');
+});
 ```
 
-## Observability
+## Database Schema
 
-### Health Checks
+The service uses PostgreSQL with the following main tables:
 
-Health check endpoint with dependency status:
-```bash
-curl http://localhost:8080/api/v1/health
-```
+### notifications
 
-Spring Boot Actuator health endpoint:
-```bash
-curl http://localhost:8081/actuator/health
-```
+| Column | Type | Description |
+|--------|------|-------------|
+| id | VARCHAR(36) | Primary key (UUID) |
+| type | VARCHAR(20) | Notification type (email, push, websocket, sms) |
+| recipient | JSONB | Recipient information |
+| payload | JSONB | Notification content |
+| status | VARCHAR(20) | Status (pending, processing, sent, failed, retrying) |
+| priority | VARCHAR(10) | Priority level (low, medium, high, urgent) |
+| attempts | INTEGER | Number of send attempts |
+| max_attempts | INTEGER | Maximum allowed attempts |
+| scheduled_at | TIMESTAMP | When to send (for scheduled notifications) |
+| sent_at | TIMESTAMP | When successfully sent |
+| failed_at | TIMESTAMP | When permanently failed |
+| error | TEXT | Error message if failed |
+| metadata | JSONB | Additional metadata |
+| created_at | TIMESTAMP | Record creation time |
+| updated_at | TIMESTAMP | Last update time |
 
-### Metrics
+### notification_templates
 
-Prometheus metrics endpoint:
-```bash
-curl http://localhost:8081/actuator/prometheus
-```
+| Column | Type | Description |
+|--------|------|-------------|
+| id | VARCHAR(36) | Primary key (UUID) |
+| name | VARCHAR(255) | Template name |
+| type | VARCHAR(20) | Notification type |
+| subject | VARCHAR(500) | Email subject template |
+| body_template | TEXT | Message body template |
+| variables | TEXT[] | Available template variables |
+| is_active | BOOLEAN | Template status |
+| created_at | TIMESTAMP | Record creation time |
+| updated_at | TIMESTAMP | Last update time |
 
-Available metrics include:
-- JVM metrics (memory, threads, GC)
-- HTTP request metrics
-- Custom application metrics
+## Kafka Topics
 
-### Logging
-
-Structured logging with different levels per environment:
-- **Development**: DEBUG level for application code
-- **Production**: INFO level with log rotation
-
-Log configuration in `src/main/resources/logback-spring.xml`
-
-## Security
-
-### Password Requirements
-
-- Minimum 8 characters
-- At least one uppercase letter
-- At least one lowercase letter
-- At least one number
-- At least one special character
-
-### JWT Token Security
-
-- Tokens are signed with HMAC-SHA256
-- Access tokens expire in 1 hour (configurable)
-- Refresh tokens expire in 24 hours (configurable)
-- Tokens include user ID, roles, and other claims
-
-### Session Management
-
-- Sessions stored in Redis with TTL
-- Session timeout: 30 minutes (configurable)
-- Support for multiple concurrent sessions per user
-
-### CORS Configuration
-
-Configure allowed origins, methods, and headers in `application.yml` or environment variables.
+- **notifications**: Main topic for processing notifications
+- **notifications-dlq**: Dead letter queue for failed messages
 
 ## Testing
 
@@ -351,145 +382,265 @@ Configure allowed origins, methods, and headers in `application.yml` or environm
 
 ```bash
 # Run all tests
-mvn test
+npm test
 
-# Run with coverage
-mvn test jacoco:report
+# Run tests in watch mode
+npm run test:watch
 
-# Run specific test class
-mvn test -Dtest=AuthenticationServiceTest
+# Run tests with coverage
+npm test -- --coverage
+
+# Run integration tests
+npm run test:integration
 ```
 
 ### Test Structure
 
 ```
-src/test/java/com/authservice/
-├── api/
-│   └── controller/              # Controller tests
-├── domain/
-│   └── service/                 # Service tests
-└── infrastructure/
-    └── repository/              # Repository tests
+src/__tests__/
+├── unit/                        # Unit tests
+│   ├── NotificationService.test.ts
+│   └── RateLimitService.test.ts
+├── integration/                 # Integration tests
+│   └── api.test.ts
+└── setup.ts                     # Test configuration
 ```
 
 ## Building for Production
 
-### Build JAR
+### Build TypeScript
 
 ```bash
-mvn clean package -DskipTests
+npm run build
 ```
 
-The JAR file will be created at: `target/authentication-service-1.0.0.jar`
+The compiled JavaScript will be in the `dist/` directory.
 
 ### Build Docker Image
 
 ```bash
-docker build -t authentication-service:1.0.0 .
+docker build -t notification-service:1.0.0 .
 ```
 
 ### Run Production Build
 
 ```bash
-java -jar -Dspring.profiles.active=prod target/authentication-service-1.0.0.jar
+# Set production environment
+export NODE_ENV=production
+
+# Run the built application
+npm start
 ```
 
-## Deployment
+## Observability
 
-### Docker Compose (Production)
+### Logging
 
-Update `docker-compose.yml` for production:
-- Use environment-specific `.env` file
-- Configure proper secrets management
-- Set up persistent volumes
-- Configure resource limits
+Structured logging with Pino:
+- Development: Pretty-printed logs with colors
+- Production: JSON logs for easy parsing
 
-### Kubernetes
+Log levels: error, warn, info, debug
 
-Sample Kubernetes manifests (create these files as needed):
+### Health Checks
 
-```yaml
-# deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: authentication-service
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: authentication-service
-  template:
-    metadata:
-      labels:
-        app: authentication-service
-    spec:
-      containers:
-      - name: authentication-service
-        image: authentication-service:1.0.0
-        ports:
-        - containerPort: 8080
-        - containerPort: 8081
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: "prod"
-        # Add other environment variables
+Built-in health check endpoints:
+- `/health` - Basic health status
+- `/health/detailed` - Includes dependency health
+- `/health/metrics` - Application metrics
+
+### Metrics
+
+Access application metrics:
+```bash
+curl http://localhost:3000/health/metrics
 ```
+
+Includes:
+- Memory usage
+- CPU usage
+- Uptime
+- Node.js version
+
+## Security
+
+### Rate Limiting
+
+Configurable rate limiting per IP address:
+- Default: 100 requests per minute
+- Configurable via environment variables
+- Redis-backed for distributed rate limiting
+
+### Input Validation
+
+All API endpoints use express-validator for:
+- Type validation
+- Format validation
+- Required field validation
+- Sanitization
+
+### Authentication
+
+Placeholder for JWT authentication (can be enabled):
+- Bearer token support
+- JWT secret configuration
+- Token expiry management
+
+## Performance
+
+- **Redis caching**: Reduces database load for frequently accessed notifications
+- **Kafka async processing**: Decouples notification creation from delivery
+- **Connection pooling**: PostgreSQL and Redis connection pools
+- **Retry mechanism**: Exponential backoff for failed deliveries
+- **Scheduled processing**: Background job for scheduled notifications
 
 ## Troubleshooting
 
 ### Common Issues
 
-**1. Keycloak Connection Failed**
-- Ensure Keycloak is running and accessible
-- Verify `KEYCLOAK_AUTH_SERVER_URL` is correct
-- Check client secret matches Keycloak configuration
+**1. Kafka Connection Failed**
+```bash
+# Check Kafka is running
+docker-compose ps kafka
 
-**2. Redis Connection Failed**
-- Verify Redis is running: `docker ps | grep redis`
-- Check Redis connection settings in configuration
-- Test Redis: `redis-cli ping`
+# Check Kafka logs
+docker-compose logs kafka
 
-**3. JWT Validation Errors**
-- Ensure JWT secret is configured and consistent
-- Check token expiration time
-- Verify token format (Bearer prefix)
+# Verify brokers configuration
+echo $KAFKA_BROKERS
+```
+
+**2. SendGrid Email Not Sending**
+- Verify API key is correct
+- Check sender email is verified in SendGrid
+- Review SendGrid dashboard for errors
+- Check logs for error messages
+
+**3. Firebase Push Notifications Failing**
+- Ensure service account JSON is valid
+- Verify project ID matches Firebase project
+- Check device token format
+- Review Firebase console for errors
+
+**4. Database Migration Issues**
+```bash
+# Run migrations manually
+npm run migrate
+
+# Check database connection
+psql -h localhost -U postgres -d notification_service
+```
 
 ### Logs
 
 View application logs:
 ```bash
 # Docker Compose
-docker-compose logs -f auth-service
+docker-compose logs -f notification-service
 
 # Local
-tail -f spring.log
+# Logs are output to console in development
+
+# Production logs location
+tail -f logs/app.log
 ```
 
 ## Development
 
 ### Code Style
 
-- Follow Java conventions
-- Use Lombok for boilerplate code
+- Follow TypeScript best practices
+- Use ESLint for code quality
 - Write meaningful comments for complex logic
 - Maintain test coverage above 80%
 
-### Adding New Features
+### Adding New Notification Providers
 
-1. Create domain models in `domain/model`
-2. Implement business logic in `domain/service`
-3. Create DTOs in `api/dto`
-4. Add controllers in `api/controller`
-5. Write tests for all layers
-6. Update API documentation
+1. Create provider class implementing `INotificationProvider`
+2. Add provider configuration to `config/index.ts`
+3. Register provider in `app.ts`
+4. Add feature flag to `.env.example`
+5. Write tests for the provider
+6. Update documentation
 
-## Performance
+Example:
+```typescript
+// src/infrastructure/providers/SmsProvider.ts
+export class SmsProvider implements INotificationProvider {
+  async send(notification: Notification): Promise<SendResult> {
+    // Implementation
+  }
 
-- Redis caching for sessions reduces database load
-- JWT tokens minimize server-side state
-- Stateless API design enables horizontal scaling
-- Connection pooling for Redis and HTTP clients
+  validateRecipient(notification: Notification): boolean {
+    // Validation
+  }
+}
+```
+
+### Project Scripts
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build TypeScript to JavaScript
+npm start            # Start production server
+npm test             # Run tests
+npm run lint         # Run ESLint
+npm run lint:fix     # Fix ESLint issues
+npm run migrate      # Run database migrations
+npm run docker:up    # Start Docker Compose
+npm run docker:down  # Stop Docker Compose
+```
+
+## Deployment
+
+### Environment-Specific Configuration
+
+Create environment-specific `.env` files:
+- `.env.development`
+- `.env.staging`
+- `.env.production`
+
+### Docker Deployment
+
+```bash
+# Build and push to registry
+docker build -t your-registry/notification-service:1.0.0 .
+docker push your-registry/notification-service:1.0.0
+
+# Deploy with docker-compose
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+### Kubernetes Deployment
+
+Sample Kubernetes manifests:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+      - name: notification-service
+        image: notification-service:1.0.0
+        ports:
+        - containerPort: 3000
+        - containerPort: 3001
+        env:
+        - name: NODE_ENV
+          value: "production"
+        # Add ConfigMap/Secret references
+```
 
 ## License
 
@@ -499,16 +650,16 @@ MIT License - see LICENSE file for details
 
 For issues and questions:
 - Create an issue in the repository
-- Contact: support@authservice.com
+- Email: support@example.com
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ---
 
-**Built with ❤️ using Spring Boot**
+**Built with Node.js, TypeScript, and Modern DevOps Practices**

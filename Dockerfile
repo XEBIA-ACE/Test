@@ -1,44 +1,57 @@
-# Multi-stage build for optimized image size
+# Multi-stage build for optimized production image
 
 # Stage 1: Build
-FROM maven:3.9.5-eclipse-temurin-17-alpine AS build
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy pom.xml and download dependencies
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
 
-# Copy source code and build
+# Install dependencies
+RUN npm ci --only=production && \
+    npm ci --only=development
+
+# Copy source code
 COPY src ./src
-RUN mvn clean package -DskipTests -B
 
-# Stage 2: Runtime
-FROM eclipse-temurin:17-jre-alpine
+# Build TypeScript
+RUN npm run build
+
+# Stage 2: Production
+FROM node:18-alpine
 
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -S spring && adduser -S spring -G spring
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 
-# Copy jar from build stage
-COPY --from=build /app/target/*.jar app.jar
+# Copy package files
+COPY package*.json ./
 
-# Change ownership
-RUN chown -R spring:spring /app
+# Install production dependencies only
+RUN npm ci --only=production && \
+    npm cache clean --force
 
-# Switch to non-root user
-USER spring:spring
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
 
-# Expose application port
-EXPOSE 8080
+# Copy migration files
+COPY --from=builder /app/src/infrastructure/database/migrations ./dist/infrastructure/database/migrations
 
-# Expose actuator port
-EXPOSE 8081
+# Change ownership to non-root user
+RUN chown -R nodejs:nodejs /app
+
+USER nodejs
+
+# Expose ports
+EXPOSE 3000 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/health || exit 1
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# Run application
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+# Start application
+CMD ["node", "dist/index.js"]

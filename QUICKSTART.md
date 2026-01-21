@@ -1,244 +1,190 @@
 # Quick Start Guide
 
-Get the Authentication Service up and running in 5 minutes!
+Get the Notification Service up and running in 5 minutes!
 
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Java 17+ (for local development)
-- Maven 3.8+ (for local development)
+- (Optional) SendGrid API key for email notifications
+- (Optional) Firebase credentials for push notifications
 
-## Option 1: Docker Compose (Fastest)
-
-### 1. Clone and Configure
+## Step 1: Clone and Configure
 
 ```bash
-cd authentication-service
+# Clone the repository
+git clone <repository-url>
+cd notification-service
+
+# Copy environment configuration
 cp .env.example .env
 ```
 
-### 2. Start Everything
+## Step 2: Start the Service
 
 ```bash
+# Start all services (PostgreSQL, Redis, Kafka, Notification Service)
 docker-compose up -d
-```
 
-This starts:
-- Redis (session storage)
-- Keycloak (user management)
-- Authentication Service
-
-### 3. Configure Keycloak
-
-```bash
-chmod +x scripts/setup-keycloak.sh
-./scripts/setup-keycloak.sh
-```
-
-Copy the client secret from the output and update your `.env` file.
-
-### 4. Test the API
-
-```bash
-chmod +x scripts/test-api.sh
-./scripts/test-api.sh
-```
-
-### 5. Access the Services
-
-- **API**: http://localhost:8080
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **Health**: http://localhost:8080/api/v1/health
-- **Metrics**: http://localhost:8081/actuator/prometheus
-- **Keycloak**: http://localhost:8180 (admin/admin)
-
-## Option 2: Local Development
-
-### 1. Start Dependencies
-
-```bash
-chmod +x scripts/start-dev.sh
-./scripts/start-dev.sh
-```
-
-### 2. Configure Keycloak
-
-```bash
-./scripts/setup-keycloak.sh
-```
-
-Update `.env` with the client secret.
-
-### 3. Build and Run
-
-```bash
-mvn clean install
-mvn spring-boot:run
-```
-
-## Quick API Test
-
-### Register a User
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "johndoe",
-    "email": "john@example.com",
-    "password": "SecureP@ss123",
-    "firstName": "John",
-    "lastName": "Doe"
-  }'
-```
-
-### Login
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "johndoe",
-    "password": "SecureP@ss123"
-  }'
-```
-
-Save the `accessToken` and `refreshToken` from the response.
-
-### Access Protected Endpoint
-
-```bash
-curl -X GET "http://localhost:8080/api/v1/auth/me?userId=USER_ID" \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-### Refresh Token
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/refresh \
-  -H "Content-Type: application/json" \
-  -d '{
-    "refreshToken": "YOUR_REFRESH_TOKEN"
-  }'
-```
-
-## Interactive API Documentation
-
-Open Swagger UI for interactive testing:
-
-http://localhost:8080/swagger-ui.html
-
-## Troubleshooting
-
-### Service won't start
-
-```bash
-# Check service status
+# Check that all services are running
 docker-compose ps
 
 # View logs
-docker-compose logs -f auth-service
-
-# Restart services
-docker-compose restart
+docker-compose logs -f notification-service
 ```
 
-### Keycloak connection issues
+## Step 3: Run Database Migrations
 
 ```bash
-# Check Keycloak is ready
-curl http://localhost:8180/health/ready
-
-# Verify client secret in .env matches Keycloak
+docker-compose exec notification-service npm run migrate
 ```
 
-### Redis connection issues
+## Step 4: Test the Service
+
+### Health Check
 
 ```bash
-# Test Redis connection
-docker-compose exec redis redis-cli ping
-
-# Should return: PONG
+curl http://localhost:3000/health
 ```
 
-## Stop Services
+### Create an Email Notification
 
 ```bash
+curl -X POST http://localhost:3000/api/v1/notifications \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "email",
+    "recipient": {
+      "email": "test@example.com",
+      "userId": "user-123"
+    },
+    "payload": {
+      "subject": "Test Notification",
+      "body": "This is a test notification from the notification service!"
+    },
+    "priority": "high"
+  }'
+```
+
+### Get Notification Status
+
+```bash
+# Replace {id} with the notification ID from the previous response
+curl http://localhost:3000/api/v1/notifications/{id}
+```
+
+## Step 5: Explore the API
+
+Open your browser and visit:
+- **API Documentation**: http://localhost:3000/api-docs
+- **Health Check**: http://localhost:3000/health/detailed
+
+## WebSocket Example
+
+Connect to the WebSocket server to receive real-time notifications:
+
+```javascript
+// In your browser console or Node.js app
+const socket = io('http://localhost:3001', { path: '/notifications' });
+
+socket.emit('register', 'user-123');
+
+socket.on('notification', (data) => {
+  console.log('Received notification:', data);
+});
+```
+
+## Stopping the Service
+
+```bash
+# Stop all services
 docker-compose down
-```
 
-To remove volumes:
-
-```bash
+# Stop and remove volumes (removes all data)
 docker-compose down -v
 ```
 
 ## Next Steps
 
-1. Read the full [README.md](README.md) for detailed documentation
-2. Review [ARCHITECTURE.md](ARCHITECTURE.md) to understand the design
-3. Explore the code structure in [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
-4. Check [CHANGELOG.md](CHANGELOG.md) for version history
+1. Configure SendGrid API key in `.env` to enable email notifications
+2. Set up Firebase credentials for push notifications
+3. Read the full README.md for detailed documentation
+4. Explore the API endpoints in Swagger UI
+5. Check the test suite with `npm test`
 
 ## Common Commands
 
 ```bash
-# Build without Docker
-mvn clean package
+# View all logs
+docker-compose logs -f
 
-# Run tests
-mvn test
+# View service-specific logs
+docker-compose logs -f notification-service
+docker-compose logs -f kafka
+docker-compose logs -f postgres
 
-# Build Docker image
-docker build -t auth-service:latest .
+# Restart a specific service
+docker-compose restart notification-service
 
-# Run with specific profile
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
+# Rebuild and restart
+docker-compose up -d --build notification-service
 
-# View application logs
-docker-compose logs -f auth-service
+# Access the database
+docker-compose exec postgres psql -U postgres -d notification_service
 
 # Access Redis CLI
 docker-compose exec redis redis-cli
-
-# Check health
-curl http://localhost:8080/api/v1/health
 ```
 
-## Environment Variables
+## Troubleshooting
 
-Key variables in `.env`:
+### Service won't start
+```bash
+# Check logs for errors
+docker-compose logs notification-service
 
-```env
-# Application
-SPRING_PROFILES_ACTIVE=dev
-SERVER_PORT=8080
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Keycloak
-KEYCLOAK_AUTH_SERVER_URL=http://localhost:8180/auth
-KEYCLOAK_REALM=authentication-service
-KEYCLOAK_CLIENT_SECRET=your-secret-here
-
-# JWT
-JWT_SECRET=your-256-bit-secret
-JWT_EXPIRATION_MS=3600000
+# Ensure all ports are available
+netstat -an | grep -E "3000|3001|5432|6379|9092"
 ```
 
-## Production Deployment
+### Database connection failed
+```bash
+# Check PostgreSQL is running
+docker-compose ps postgres
 
-For production deployment:
+# Run migrations
+docker-compose exec notification-service npm run migrate
+```
 
-1. Update `.env` with production values
-2. Use secure JWT secret (256-bit minimum)
-3. Configure proper Redis password
-4. Set up SSL/TLS certificates
-5. Use `prod` profile: `SPRING_PROFILES_ACTIVE=prod`
-6. Review security settings in `application-prod.yml`
+### Kafka connection failed
+```bash
+# Check Kafka is running
+docker-compose ps kafka
 
----
+# Wait for Kafka to be ready (may take 30-60 seconds)
+docker-compose logs kafka | grep "started"
+```
 
-**You're all set! Happy coding! 🚀**
+## Development Mode
+
+To run in development mode with hot-reload:
+
+```bash
+# Start infrastructure only
+docker-compose up -d postgres redis zookeeper kafka
+
+# Install dependencies locally
+npm install
+
+# Configure environment
+cp .env.example .env
+
+# Run migrations
+npm run migrate
+
+# Start development server
+npm run dev
+```
+
+That's it! You now have a fully functional notification service running locally.
+
+For more detailed information, see the main README.md file.
