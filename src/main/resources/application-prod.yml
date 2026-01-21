@@ -1,0 +1,19 @@
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PASSWORD}
+
+keycloak:
+  auth-server-url: ${KEYCLOAK_AUTH_SERVER_URL}
+
+logging:
+  level:
+    root: WARN
+    com.authservice: INFO
+
+management:
+  endpoint:
+    health:
+      show-details: when-authorized
