@@ -1,36 +1,27 @@
+# Test configuration
 spring:
-  data:
-    redis:
-      host: localhost
-      port: 6379
-      database: 15  # Use different database for tests
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/spring-cloud-samples/config-repo
+          clone-on-start: true
 
-jwt:
-  secret: test-secret-key-that-is-long-enough-for-hmac-sha256-algorithm-requirements
-  expiration-ms: 3600000
-  refresh-expiration-ms: 86400000
-  issuer: test-auth-service
+    consul:
+      enabled: false
 
-keycloak:
-  auth-server-url: http://localhost:8180/auth
-  realm: test-realm
-  resource: test-client
-  credentials:
-    secret: test-secret
-  admin:
-    username: admin
-    password: admin
+    vault:
+      enabled: false
 
-session:
-  timeout-seconds: 1800
+server:
+  port: 0  # Random port for tests
 
-cors:
-  allowed-origins: http://localhost:3000
-  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-  allowed-headers: "*"
-  allow-credentials: true
+config:
+  security:
+    username: testuser
+    password: testpass
 
 logging:
   level:
-    root: INFO
-    com.authservice: DEBUG
+    root: WARN
+    com.example.configservice: INFO

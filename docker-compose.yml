@@ -1,148 +1,117 @@
 version: '3.8'
 
+# ============================================================================
+# Docker Compose for Local Development Environment
+# ============================================================================
+
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: notification-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: notification_service
+  # Consul - Service Discovery and Configuration
+  consul:
+    image: hashicorp/consul:1.17
+    container_name: consul
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - "8500:8500"
+      - "8600:8600/udp"
+    command: agent -server -ui -bootstrap-expect=1 -client=0.0.0.0
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+    networks:
+      - config-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD", "consul", "members"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - notification-network
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: notification-redis
-    command: redis-server --appendonly yes
+  # Vault - Secrets Management
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: vault
     ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=myroot
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - config-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "vault", "status"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - notification-network
 
-  # Apache Kafka (with Zookeeper)
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: notification-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
+  # Git Server (optional - for local testing)
+  # Using a simple git-over-http server for demo purposes
+  git-server:
+    image: gitea/gitea:1.21
+    container_name: git-server
     ports:
-      - "2181:2181"
+      - "3000:3000"
+      - "222:22"
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__server__ROOT_URL=http://localhost:3000
     volumes:
-      - zookeeper-data:/var/lib/zookeeper/data
-      - zookeeper-logs:/var/lib/zookeeper/log
+      - gitea-data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     networks:
-      - notification-network
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: notification-kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-      - "9093:9093"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-    volumes:
-      - kafka-data:/var/lib/kafka/data
+      - config-network
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
       retries: 5
-    networks:
-      - notification-network
 
-  # Notification Service
-  notification-service:
+  # Config Service
+  config-service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: notification-service
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+    container_name: config-service
     ports:
-      - "3000:3000"
-      - "3001:3001"
+      - "8888:8888"
     environment:
-      NODE_ENV: development
-      PORT: 3000
-
-      # Database
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: notification_service
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-
-      # Redis
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-
-      # Kafka
-      KAFKA_BROKERS: kafka:29092
-      KAFKA_CLIENT_ID: notification-service
-      KAFKA_GROUP_ID: notification-service-group
-
-      # SendGrid (set your own key)
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      SENDGRID_FROM_EMAIL: noreply@yourdomain.com
-
-      # Firebase (set your own credentials)
-      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
-
-      # WebSocket
-      WS_PORT: 3001
-      WS_CORS_ORIGIN: "*"
-
-      # Features
-      ENABLE_EMAIL: "true"
-      ENABLE_PUSH: "false"
-      ENABLE_WEBSOCKET: "true"
-    volumes:
-      - ./logs:/app/logs
+      - SPRING_PROFILES_ACTIVE=dev
+      - GIT_REPO_URI=${GIT_REPO_URI:-https://github.com/your-org/config-repo.git}
+      - GIT_USERNAME=${GIT_USERNAME:-}
+      - GIT_PASSWORD=${GIT_PASSWORD:-}
+      - CONSUL_ENABLED=true
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - VAULT_ENABLED=true
+      - VAULT_HOST=vault
+      - VAULT_PORT=8200
+      - VAULT_SCHEME=http
+      - VAULT_TOKEN=myroot
+      - CONFIG_USERNAME=admin
+      - CONFIG_PASSWORD=admin123
+      - JAVA_OPTS=-Xmx512m -Xms256m
+    depends_on:
+      consul:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
     networks:
-      - notification-network
-    restart: unless-stopped
-
-volumes:
-  postgres-data:
-  redis-data:
-  zookeeper-data:
-  zookeeper-logs:
-  kafka-data:
+      - config-network
+    volumes:
+      - config-logs:/var/log/config-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8888/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
 networks:
-  notification-network:
+  config-network:
     driver: bridge
+
+volumes:
+  gitea-data:
+  config-logs:

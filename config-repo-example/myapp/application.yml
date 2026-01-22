@@ -1,0 +1,16 @@
+# Configuration for 'myapp' application
+# Loaded for all environments
+
+app:
+  name: My Application
+  version: 1.0.0
+
+database:
+  pool:
+    size: 10
+    timeout: 30000
+
+feature:
+  flags:
+    newUI: false
+    betaFeatures: false

@@ -1,0 +1,25 @@
+version: '3.8'
+
+# ============================================================================
+# Docker Compose Override for Development
+# This file is automatically merged with docker-compose.yml
+# ============================================================================
+
+services:
+  config-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder  # Use builder stage for development hot-reload
+    volumes:
+      # Mount source code for development
+      - ./src:/app/src
+      - ./pom.xml:/app/pom.xml
+      - maven-cache:/root/.m2
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+      - LOGGING_LEVEL_COM_EXAMPLE_CONFIGSERVICE=DEBUG
+
+volumes:
+  maven-cache:

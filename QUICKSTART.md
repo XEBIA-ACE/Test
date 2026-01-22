@@ -1,190 +1,221 @@
 # Quick Start Guide
 
-Get the Notification Service up and running in 5 minutes!
+Get the Configuration Service running in under 5 minutes!
 
-## Prerequisites
+## Option 1: Docker Compose (Recommended)
 
-- Docker and Docker Compose installed
-- (Optional) SendGrid API key for email notifications
-- (Optional) Firebase credentials for push notifications
+The fastest way to get started with all dependencies.
 
-## Step 1: Clone and Configure
+### Step 1: Set Environment Variables
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd notification-service
-
-# Copy environment configuration
 cp .env.example .env
 ```
 
-## Step 2: Start the Service
+Edit `.env` file:
+```bash
+# Minimal configuration for local testing
+SPRING_PROFILES_ACTIVE=dev
+GIT_REPO_URI=https://github.com/spring-cloud-samples/config-repo
+CONFIG_USERNAME=admin
+CONFIG_PASSWORD=admin123
+```
+
+### Step 2: Start Services
 
 ```bash
-# Start all services (PostgreSQL, Redis, Kafka, Notification Service)
 docker-compose up -d
-
-# Check that all services are running
-docker-compose ps
-
-# View logs
-docker-compose logs -f notification-service
 ```
 
-## Step 3: Run Database Migrations
+This starts:
+- Config Service (port 8888)
+- Consul (port 8500)
+- Vault (port 8200)
+- Gitea (optional Git server, port 3000)
+
+### Step 3: Verify
 
 ```bash
-docker-compose exec notification-service npm run migrate
+# Check health
+curl http://localhost:8888/actuator/health
+
+# Get sample config (using demo repo)
+curl -u admin:admin123 http://localhost:8888/foo/development
 ```
 
-## Step 4: Test the Service
+### Step 4: Access UIs
 
-### Health Check
+- Config Service: http://localhost:8888/actuator
+- Consul UI: http://localhost:8500
+- Vault UI: http://localhost:8200 (token: myroot)
+
+## Option 2: Local Java
+
+Run directly on your machine without Docker.
+
+### Prerequisites
+
+- Java 17+
+- Maven 3.6+
+
+### Step 1: Build
 
 ```bash
-curl http://localhost:3000/health
+mvn clean package -DskipTests
 ```
 
-### Create an Email Notification
+### Step 2: Run
 
 ```bash
-curl -X POST http://localhost:3000/api/v1/notifications \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "email",
-    "recipient": {
-      "email": "test@example.com",
-      "userId": "user-123"
-    },
-    "payload": {
-      "subject": "Test Notification",
-      "body": "This is a test notification from the notification service!"
-    },
-    "priority": "high"
-  }'
+export GIT_REPO_URI=https://github.com/spring-cloud-samples/config-repo
+export SPRING_PROFILES_ACTIVE=dev
+java -jar target/config-service-1.0.0.jar
 ```
 
-### Get Notification Status
+Or use Maven:
 
 ```bash
-# Replace {id} with the notification ID from the previous response
-curl http://localhost:3000/api/v1/notifications/{id}
+./scripts/run-dev.sh
 ```
 
-## Step 5: Explore the API
-
-Open your browser and visit:
-- **API Documentation**: http://localhost:3000/api-docs
-- **Health Check**: http://localhost:3000/health/detailed
-
-## WebSocket Example
-
-Connect to the WebSocket server to receive real-time notifications:
-
-```javascript
-// In your browser console or Node.js app
-const socket = io('http://localhost:3001', { path: '/notifications' });
-
-socket.emit('register', 'user-123');
-
-socket.on('notification', (data) => {
-  console.log('Received notification:', data);
-});
-```
-
-## Stopping the Service
+### Step 3: Test
 
 ```bash
-# Stop all services
-docker-compose down
+curl http://localhost:8888/actuator/health
+curl -u admin:dev123 http://localhost:8888/foo/development
+```
 
-# Stop and remove volumes (removes all data)
-docker-compose down -v
+## Option 3: Development Mode
+
+For active development with auto-reload.
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
 ## Next Steps
 
-1. Configure SendGrid API key in `.env` to enable email notifications
-2. Set up Firebase credentials for push notifications
-3. Read the full README.md for detailed documentation
-4. Explore the API endpoints in Swagger UI
-5. Check the test suite with `npm test`
+### 1. Create Your Configuration Repository
+
+```bash
+# Create a new Git repository
+mkdir my-config-repo
+cd my-config-repo
+git init
+
+# Create application config
+cat > application.yml << EOF
+common:
+  timezone: UTC
+EOF
+
+# Commit and push
+git add .
+git commit -m "Initial config"
+git remote add origin https://github.com/your-org/my-config-repo.git
+git push -u origin main
+```
+
+### 2. Update Config Service
+
+```bash
+export GIT_REPO_URI=https://github.com/your-org/my-config-repo.git
+export GIT_USERNAME=your-username
+export GIT_PASSWORD=your-token
+```
+
+Restart the service.
+
+### 3. Add Your Application Config
+
+Create `my-config-repo/myapp/application.yml`:
+
+```yaml
+app:
+  name: My Application
+  version: 1.0.0
+
+database:
+  url: jdbc:postgresql://localhost:5432/myapp
+  username: appuser
+```
+
+### 4. Retrieve Configuration
+
+```bash
+curl -u admin:admin123 http://localhost:8888/myapp/default
+```
 
 ## Common Commands
 
 ```bash
-# View all logs
-docker-compose logs -f
+# Health check
+curl http://localhost:8888/actuator/health
 
-# View service-specific logs
-docker-compose logs -f notification-service
-docker-compose logs -f kafka
-docker-compose logs -f postgres
+# Get config for app 'myapp' in 'prod' environment
+curl -u admin:admin123 http://localhost:8888/myapp/prod
 
-# Restart a specific service
-docker-compose restart notification-service
+# Encrypt a value
+curl -u admin:admin123 -X POST \
+  -H "Content-Type: text/plain" \
+  -d "mysecret" \
+  http://localhost:8888/encrypt
 
-# Rebuild and restart
-docker-compose up -d --build notification-service
+# View metrics
+curl -u admin:admin123 http://localhost:8888/actuator/metrics
 
-# Access the database
-docker-compose exec postgres psql -U postgres -d notification_service
+# Stop Docker Compose
+docker-compose down
 
-# Access Redis CLI
-docker-compose exec redis redis-cli
+# View logs
+docker-compose logs -f config-service
 ```
 
 ## Troubleshooting
 
 ### Service won't start
-```bash
-# Check logs for errors
-docker-compose logs notification-service
-
-# Ensure all ports are available
-netstat -an | grep -E "3000|3001|5432|6379|9092"
-```
-
-### Database connection failed
-```bash
-# Check PostgreSQL is running
-docker-compose ps postgres
-
-# Run migrations
-docker-compose exec notification-service npm run migrate
-```
-
-### Kafka connection failed
-```bash
-# Check Kafka is running
-docker-compose ps kafka
-
-# Wait for Kafka to be ready (may take 30-60 seconds)
-docker-compose logs kafka | grep "started"
-```
-
-## Development Mode
-
-To run in development mode with hot-reload:
 
 ```bash
-# Start infrastructure only
-docker-compose up -d postgres redis zookeeper kafka
+# Check logs
+docker-compose logs config-service
 
-# Install dependencies locally
-npm install
-
-# Configure environment
-cp .env.example .env
-
-# Run migrations
-npm run migrate
-
-# Start development server
-npm run dev
+# Or for local run
+tail -f logs/config-service.log
 ```
 
-That's it! You now have a fully functional notification service running locally.
+### Can't connect to Git repository
 
-For more detailed information, see the main README.md file.
+```bash
+# Test Git access
+git ls-remote https://github.com/your-org/config-repo.git
+
+# Use public demo repository for testing
+export GIT_REPO_URI=https://github.com/spring-cloud-samples/config-repo
+```
+
+### Authentication issues
+
+Default credentials:
+- Username: `admin`
+- Password: `admin123` (Docker Compose) or `dev123` (local dev)
+
+Change in `.env` file:
+```bash
+CONFIG_USERNAME=myuser
+CONFIG_PASSWORD=mypassword
+```
+
+## Production Deployment
+
+For production deployment, see [README.md](README.md) for:
+- Security hardening
+- Vault integration
+- Consul setup
+- Kubernetes deployment
+- Monitoring setup
+
+## Support
+
+- Full documentation: [README.md](README.md)
+- API reference: [API.md](API.md)
+- Issues: GitHub Issues

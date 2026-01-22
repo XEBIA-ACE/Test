@@ -1,0 +1,10 @@
+# Production environment defaults
+
+logging:
+  level:
+    root: WARN
+
+debug: false
+
+security:
+  require-ssl: true

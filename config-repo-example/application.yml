@@ -1,0 +1,16 @@
+# Default configuration for all applications
+# This file is loaded for every application
+
+common:
+  timezone: UTC
+  encoding: UTF-8
+
+logging:
+  level:
+    root: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics

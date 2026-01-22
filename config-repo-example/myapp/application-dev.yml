@@ -1,0 +1,15 @@
+# Development configuration for 'myapp'
+
+database:
+  url: jdbc:postgresql://localhost:5432/myapp_dev
+  username: dev_user
+  password: dev_password
+
+feature:
+  flags:
+    newUI: true
+    betaFeatures: true
+
+external:
+  api:
+    url: http://localhost:3000/api

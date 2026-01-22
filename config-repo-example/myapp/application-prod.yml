@@ -1,0 +1,29 @@
+# Production configuration for 'myapp'
+
+database:
+  url: jdbc:postgresql://prod-db.example.com:5432/myapp
+  username: app_user
+  # Use encryption for sensitive data
+  password: '{cipher}AQA1lL5E3cP8B9mN7kJ2hG4fD1sA6qW8eR3tY5uI0oP9kL8jH7gF6dS5aQ4wE3rT2yU1iO0pA9sD8fG7hJ6kL5'
+
+database:
+  pool:
+    size: 50
+    timeout: 60000
+
+feature:
+  flags:
+    newUI: true
+    betaFeatures: false
+
+external:
+  api:
+    url: https://api.example.com
+    timeout: 5000
+    retry:
+      maxAttempts: 3
+      delay: 1000
+
+cache:
+  enabled: true
+  ttl: 3600
