@@ -1,0 +1,412 @@
+openapi: 3.0.3
+info:
+  title: Integration Service API
+  description: Production-ready Integration Service with support for REST/SOAP clients, message queues, and caching
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Development server
+  - url: https://api.example.com/api/v1
+    description: Production server
+
+tags:
+  - name: Integrations
+    description: Integration management endpoints
+  - name: Health
+    description: Health check endpoints
+
+paths:
+  /integrations:
+    post:
+      tags:
+        - Integrations
+      summary: Create a new integration
+      description: Creates a new integration request for async processing
+      operationId: createIntegration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIntegrationRequest'
+      responses:
+        '201':
+          description: Integration created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags:
+        - Integrations
+      summary: List integrations
+      description: Returns a list of integrations with optional filtering
+      operationId: listIntegrations
+      parameters:
+        - name: sourceSystem
+          in: query
+          description: Filter by source system
+          schema:
+            type: string
+        - name: targetSystem
+          in: query
+          description: Filter by target system
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by status
+          schema:
+            type: string
+            enum: [PENDING, PROCESSING, COMPLETED, FAILED, RETRYING]
+        - name: startDate
+          in: query
+          description: Filter by start date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          description: Filter by end date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          description: Number of results to return
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          description: Number of results to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of integrations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationListResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /integrations/{id}:
+    get:
+      tags:
+        - Integrations
+      summary: Get integration by ID
+      description: Returns a single integration by ID
+      operationId: getIntegration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Integration ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Integration details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegrationResponse'
+        '404':
+          description: Integration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /integrations/{id}/process:
+    post:
+      tags:
+        - Integrations
+      summary: Process integration
+      description: Triggers processing of a pending integration
+      operationId: processIntegration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Integration ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Integration processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessIntegrationResponse'
+        '404':
+          description: Integration not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns service health status
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: Returns service readiness status
+      operationId: readinessCheck
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadinessResponse'
+
+  /live:
+    get:
+      tags:
+        - Health
+      summary: Liveness check
+      description: Returns service liveness status
+      operationId: livenessCheck
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivenessResponse'
+
+components:
+  schemas:
+    CreateIntegrationRequest:
+      type: object
+      required:
+        - sourceSystem
+        - targetSystem
+        - operation
+        - payload
+      properties:
+        sourceSystem:
+          type: string
+          description: Source system name
+          example: "CRM"
+        targetSystem:
+          type: string
+          description: Target system name
+          example: "ERP"
+        operation:
+          type: string
+          description: Operation to perform
+          example: "createOrder"
+        payload:
+          type: object
+          description: Request payload data
+          additionalProperties: true
+        metadata:
+          type: object
+          description: Additional metadata
+          additionalProperties: true
+
+    Integration:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sourceSystem:
+          type: string
+        targetSystem:
+          type: string
+        operation:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED, RETRYING]
+        requestTimestamp:
+          type: string
+          format: date-time
+        responseTimestamp:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties: true
+        errorMessage:
+          type: string
+        retryCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    IntegrationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Integration'
+        message:
+          type: string
+
+    IntegrationListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Integration'
+        count:
+          type: integer
+
+    ProcessIntegrationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [PENDING, PROCESSING, COMPLETED, FAILED, RETRYING]
+            data:
+              type: object
+              additionalProperties: true
+            message:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        service:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+
+    ReadinessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, not ready]
+        checks:
+          type: object
+          properties:
+            database:
+              type: boolean
+            redis:
+              type: boolean
+            kafka:
+              type: boolean
+        timestamp:
+          type: string
+          format: date-time
+
+    LivenessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "alive"
+        timestamp:
+          type: string
+          format: date-time

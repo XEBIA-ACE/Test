@@ -1,65 +1,64 @@
-# ============================================================================
-# Multi-stage Dockerfile for Spring Cloud Config Service
-# ============================================================================
+# Dockerfile for Claude Code Wrapper Celery Worker
+# 
+# MIGRATION NOTE: This service has been migrated from FastAPI to Celery-only.
+# The FastAPI layer (main.py, cwapi/) is deprecated. ACE-API now communicates
+# directly with this worker via Celery/Redis.
+#
+# Architecture: ACE-API -> Celery (Redis) -> This Worker
 
-# Stage 1: Build stage
-FROM maven:3.9.6-eclipse-temurin-17-alpine AS builder
+FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Copy pom.xml first to leverage Docker layer caching
-COPY pom.xml .
+# Install system dependencies (combined - only run apt-get once)
+RUN apt-get update && apt-get install -y \
+    gcc g++ git curl wget make ca-certificates gnupg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Download dependencies (cached if pom.xml hasn't changed)
-RUN mvn dependency:go-offline -B
+# Install Node.js 20.x (needed for Claude Agent SDK)
+RUN mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy source code
-COPY src ./src
+# Copy internal packages
+COPY packages/x-sdlc-core/ /tmp/packages/x-sdlc-core/
+COPY packages/x-sdlc-observability/ /tmp/packages/x-sdlc-observability/
 
-# Build the application (skip tests in Docker build for speed)
-RUN mvn clean package -DskipTests -B
+# Install internal packages in correct order
+RUN pip install --no-cache-dir /tmp/packages/x-sdlc-core/ && \
+    pip install --no-cache-dir "/tmp/packages/x-sdlc-observability/[all]" && \
+    rm -rf /tmp/packages/
 
-# Stage 2: Runtime stage
-FROM eclipse-temurin:17-jre-alpine
+# Copy application code
+COPY services/claude-code-wrapper/ .
 
-# Set metadata
-LABEL maintainer="devops@example.com"
-LABEL description="Spring Cloud Config Service with Git, Consul, and Vault integration"
-LABEL version="1.0.0"
+# Remove deprecated FastAPI files (optional cleanup)
+RUN rm -f env.example
 
-# Create non-root user for security
-RUN addgroup -S spring && adduser -S spring -G spring
+# Fix permissions
+RUN find /app -type d -exec chmod +x {} + && \
+    chmod -R +r /app
 
-# Set working directory
-WORKDIR /app
+RUN pip install --no-cache-dir ".[all-cloud-storage]"
 
-# Copy JAR from builder stage
-COPY --from=builder /app/target/*.jar app.jar
+# Ensure paths are set
+ENV PATH="/usr/local/bin:$PATH"
 
-# Change ownership to non-root user
-RUN chown -R spring:spring /app
+# Create temp directory for scaffolding
+RUN mkdir -p /tmp/claude-scaffold
 
-# Create logs directory
-RUN mkdir -p /var/log/config-service && chown -R spring:spring /var/log/config-service
+# No port exposure needed - this is a Celery worker, not a web server
+# EXPOSE 8080  # REMOVED - not needed for Celery worker
 
-# Switch to non-root user
-USER spring
+# Health check via Celery inspect (checks if worker is responsive)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD celery -A worker inspect ping -d celery@$HOSTNAME || exit 1
 
-# Expose port
-EXPOSE 8888
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:8888/actuator/health || exit 1
-
-# JVM options for containerized environment
-ENV JAVA_OPTS="-XX:+UseContainerSupport \
-    -XX:MaxRAMPercentage=75.0 \
-    -XX:+UseG1GC \
-    -XX:+HeapDumpOnOutOfMemoryError \
-    -XX:HeapDumpPath=/var/log/config-service \
-    -Djava.security.egd=file:/dev/./urandom"
-
-# Entry point
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+# Run Celery worker instead of FastAPI
+# - Uses solo pool for compatibility (avoids fork issues)
+# - Listens on default 'celery' queue
+# - Concurrency of 2 for parallel task execution
+CMD ["celery", "-A", "worker", "worker", "--loglevel=info", "--pool=solo", "--concurrency=2"]

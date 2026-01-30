@@ -1,0 +1,94 @@
+# Multi-stage Dockerfile for Claude Code Wrapper Celery Worker
+#
+# MIGRATION NOTE: This service has been migrated from FastAPI to Celery-only.
+# The FastAPI layer (main.py, cwapi/) is deprecated. ACE-API now communicates
+# directly with this worker via Celery/Redis.
+#
+# Architecture: ACE-API -> Celery (Redis) -> This Worker
+
+# Stage 1: Build dependencies
+FROM python:3.11-slim as builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and configure timeout settings
+RUN pip install --upgrade pip
+RUN pip config set global.timeout 300
+RUN pip config set global.retries 5
+
+# Copy only requirements first for better caching
+COPY services/claude-code-wrapper/pyproject.toml .
+COPY services/claude-code-wrapper/README.md .
+
+# Create a minimal setup.py for dependency installation
+RUN echo 'from setuptools import setup; setup()' > setup.py
+
+# Install all dependencies to a local directory
+# Note: Removed fastapi/uvicorn - no longer needed for Celery worker
+RUN pip install --user --no-cache-dir \
+    claude-agent-sdk>=0.1.0 \
+    celery>=5.3.0 \
+    redis>=5.0.0 \
+    pydantic==2.12.3 \
+    pydantic-settings==2.11.0 \
+    boto3>=1.42.0 \
+    httpx>=0.25.0 \
+    python-dotenv>=1.0.0 \
+    aiofiles>=23.2.0 \
+    psutil>=5.9.0
+
+# Stage 2: Runtime
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install runtime dependencies including Node.js for Claude Agent SDK
+RUN apt-get update && apt-get install -y \
+    curl ca-certificates gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x (needed for Claude Agent SDK)
+RUN mkdir -p /etc/apt/keyrings \
+    && curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy pre-built dependencies from builder stage
+COPY --from=builder /root/.local /root/.local
+
+# Make sure scripts in .local are usable
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy application code
+COPY services/claude-code-wrapper/ .
+
+# Install the application (fast since dependencies are already installed)
+RUN pip install --no-cache-dir -e .
+
+# Create temp directory for scaffolding
+RUN mkdir -p /tmp/claude-scaffold
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app
+RUN chown -R app:app /app /tmp/claude-scaffold
+USER app
+
+# No port exposure needed - this is a Celery worker, not a web server
+# EXPOSE 8080  # REMOVED - not needed for Celery worker
+
+# Health check via Celery inspect (checks if worker is responsive)
+HEALTHCHECK --interval=30s --timeout=15s --start-period=10s --retries=3 \
+    CMD celery -A worker inspect ping -d celery@$HOSTNAME || exit 1
+
+# Run Celery worker instead of FastAPI
+# - Uses solo pool for compatibility (avoids fork issues)
+# - Listens on default 'celery' queue
+CMD ["celery", "-A", "worker", "worker", "--loglevel=info", "--pool=solo", "--concurrency=2"]
