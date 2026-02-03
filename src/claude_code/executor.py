@@ -196,6 +196,7 @@ async def run_scaffolding(
         return
 
     # Run environment diagnostics before starting
+    import asyncio
     import os
     import subprocess
     diagnostics = []
@@ -227,7 +228,6 @@ async def run_scaffolding(
 
     # Windows-specific diagnostics
     if sys.platform == "win32":
-        import asyncio
         try:
             policy = asyncio.get_event_loop_policy()
             diagnostics.append(f"Event loop policy: {type(policy).__name__}")
@@ -507,12 +507,9 @@ async def handle_post_completion(session: Session):
             key = upload_to_cloud_config.get("key", f"scaffold/{session.id}")
             archive_format = upload_to_cloud_config.get("format", "zip")
 
-            # For backward compatibility, if using old 'upload_to_s3' config with no explicit provider,
-            # only default to S3 if CLOUD_STORAGE_PROVIDER is not explicitly configured in environment
+            # For backward compatibility, if using old 'upload_to_s3' config, default to S3
             if metadata.get("upload_to_s3") and not upload_to_cloud_config.get("provider"):
-                # Only force S3 for backward compatibility if env var is not explicitly set
-                if "CLOUD_STORAGE_PROVIDER" not in os.environ:
-                    provider = "s3"
+                provider = "s3"
 
             logger.info(
                 f"Session {session.id} cloud storage upload params: provider={provider}, bucket={bucket}, key={key}, format={archive_format}, working_dir={working_dir}")

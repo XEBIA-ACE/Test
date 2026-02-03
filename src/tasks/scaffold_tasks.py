@@ -112,6 +112,9 @@ async def _run_scaffolding_async(
     await redis_manager.update_session(session_id, status="running")
     await redis_manager.publish_session_update(session_id, "status", {"status": "running"})
 
+    # Initialize stderr capture before try block (for error handling)
+    stderr_captured: List[str] = []
+
     try:
         # Check if SDK is available
         try:
@@ -162,9 +165,7 @@ async def _run_scaffolding_async(
         if allowed_tools is None:
             allowed_tools = ["Read", "Write", "Edit", "Bash(npm:*)", "Bash(git:*)"]
 
-        # Capture stderr
-        stderr_captured: List[str] = []
-
+        # Define stderr capture callback
         def capture_stderr(msg: str) -> None:
             stderr_captured.append(msg)
             logger.info(f"Session {session_id} - SDK stderr: {msg}")
@@ -187,6 +188,12 @@ async def _run_scaffolding_async(
         messages_collected = []
         logger.info(f"Session {session_id} - Starting message stream from Claude")
 
+        # Check auto_approve flag from metadata (default: True for safety)
+        auto_approve = True
+        if metadata and isinstance(metadata, dict):
+            auto_approve = metadata.get("auto_approve", True)
+        logger.info(f"Session {session_id} - auto_approve setting: {auto_approve}")
+
         # Stream messages from Claude
         async for message in query(prompt=prompt, options=options):
             msg_dict = message_to_dict(message)
@@ -204,40 +211,49 @@ async def _run_scaffolding_async(
             if needs_user_approval(message):
                 approval_info = extract_approval_info(message)
 
-                # Set pending approval in Redis
-                await redis_manager.update_session(
-                    session_id,
-                    status="waiting_approval",
-                    pending_approval=approval_info
-                )
-                await redis_manager.publish_session_update(session_id, "approval_required", approval_info)
-
-                logger.info(f"Session {session_id} waiting for approval")
-
-                # Wait for approval via Redis pub/sub
-                approved = await redis_manager.wait_for_approval(
-                    session_id, timeout=300
-                )
-
-                # Clear pending approval
-                await redis_manager.update_session(
-                    session_id,
-                    status="running",
-                    pending_approval=None
-                )
-
-                if approved is None:
-                    # Timeout - auto-approve (configurable)
-                    logger.warning(f"Approval timeout for {session_id}, auto-approving")
+                # Determine if we should approve automatically or wait for user
+                if auto_approve:
+                    # Auto-approve immediately without waiting
                     approved = True
+                    logger.info(f"Session {session_id} - Tool use auto-approved (auto_approve=true)")
+                else:
+                    # Wait for user approval
+                    # Set pending approval in Redis
+                    await redis_manager.update_session(
+                        session_id,
+                        status="waiting_approval",
+                        pending_approval=approval_info
+                    )
+                    await redis_manager.publish_session_update(session_id, "approval_required", approval_info)
 
+                    logger.info(f"Session {session_id} waiting for user approval (auto_approve=false)")
+
+                    # Wait for approval via Redis pub/sub with timeout
+                    # Use 60 seconds timeout to avoid connection issues with WebSocket
+                    approved = await redis_manager.wait_for_approval(
+                        session_id, timeout=60
+                    )
+
+                    # Clear pending approval
+                    await redis_manager.update_session(
+                        session_id,
+                        status="running",
+                        pending_approval=None
+                    )
+
+                    if approved is None:
+                        # Timeout - reject the operation
+                        logger.warning(f"Approval timeout for {session_id}, rejecting operation")
+                        approved = False
+
+                # Check approval result (applies to both auto_approve and manual approval paths)
                 if not approved:
                     await redis_manager.update_session(
                         session_id,
                         status="cancelled",
-                        error="User rejected the operation"
+                        error="User rejected the operation or approval timeout"
                     )
-                    logger.info(f"Session {session_id} cancelled by user")
+                    logger.info(f"Session {session_id} cancelled by user or timeout")
                     return {"status": "cancelled", "error": "User rejected"}
 
         # Extract final result
@@ -299,6 +315,13 @@ async def _run_scaffolding_async(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Scaffolding failed for {session_id}: {e}", exc_info=True)
+
+        # Log captured stderr if available
+        if stderr_captured:
+            logger.error(f"Session {session_id} - Claude Code CLI stderr output:")
+            for stderr_line in stderr_captured:
+                logger.error(f"  → {stderr_line}")
+            error_msg = f"{error_msg}\n\nStderr: {' | '.join(stderr_captured)}"
 
         await redis_manager.update_session(
             session_id,

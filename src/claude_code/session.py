@@ -151,7 +151,7 @@ class SessionManager:
             self.logger.warning(
                 f"Session {session_id} not found in local memory. "
                 f"Available sessions: {list(self.sessions.keys())}. "
-                f"This may indicate the request hit a different container instance (Azure multi-instance deployment)."
+                f"This may indicate the request hit a different container instance."
             )
         return session
 
