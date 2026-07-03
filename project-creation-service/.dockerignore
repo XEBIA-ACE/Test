@@ -1,0 +1,24 @@
+# Maven build output
+target/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.classpath
+*.project
+*.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (never commit secrets)
+.env
+
+# Logs
+*.log
+logs/
+
+# Test reports
+surefire-reports/

@@ -1,0 +1,24 @@
+#!/bin/sh
+# Maven Wrapper launcher script
+# Delegates to the Maven installation bundled in .mvn/wrapper/
+
+set -e
+
+# Locate the script directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Resolve the Maven wrapper jar
+MAVEN_WRAPPER_JAR="$SCRIPT_DIR/.mvn/wrapper/maven-wrapper.jar"
+MAVEN_WRAPPER_PROPERTIES="$SCRIPT_DIR/.mvn/wrapper/maven-wrapper.properties"
+
+# Use JAVA_HOME if set, otherwise fall back to java on PATH
+if [ -n "$JAVA_HOME" ]; then
+    JAVA_CMD="$JAVA_HOME/bin/java"
+else
+    JAVA_CMD="java"
+fi
+
+exec "$JAVA_CMD" \
+    -classpath "$MAVEN_WRAPPER_JAR" \
+    "-Dmaven.multiModuleProjectDirectory=$SCRIPT_DIR" \
+    org.apache.maven.wrapper.MavenWrapperMain "$@"
