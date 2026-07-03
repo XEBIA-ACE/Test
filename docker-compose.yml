@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: projectmgmt-postgres
+    environment:
+      POSTGRES_DB: projectmanagement
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: project-management-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/projectmanagement
+      DB_USERNAME: postgres
+      DB_PASSWORD: changeme
+      SERVER_PORT: 8080
+      LOG_LEVEL: INFO
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
