@@ -31,3 +31,5 @@
 
 In a browser go to `http://localhost:8080/`.
 
+
+Hello from DarkFactory (Devin smoke test).
