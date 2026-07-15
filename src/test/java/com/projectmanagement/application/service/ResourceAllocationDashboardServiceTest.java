@@ -64,16 +64,17 @@ class ResourceAllocationDashboardServiceTest {
     void countsDistinctResources() {
         ResourceAllocationRepository repository = mock(ResourceAllocationRepository.class);
         when(repository.findAll()).thenReturn(List.of(
-                allocation("Alex Morgan", 10, 20),
-                allocation("Alex Morgan", 15, 20)));
+                allocation("Alex Morgan", 25, 20),
+                allocation("Alex Morgan", 30, 20)));
         ResourceAllocationDashboardService service = service(repository);
 
         ResourceAllocationDashboardResponse result =
                 service.getResourceAllocationDashboard();
 
         assertThat(result.totalResources()).isEqualTo(1);
+        assertThat(result.overAllocatedResources()).isEqualTo(1);
         assertThat(result.allocations()).hasSize(2);
-        assertThat(result.allocations().get(0).utilizationStatus()).isEqualTo("AVAILABLE");
+        assertThat(result.allocations().get(0).utilizationStatus()).isEqualTo("OVER_ALLOCATED");
     }
 
     private ResourceAllocationDashboardService service(

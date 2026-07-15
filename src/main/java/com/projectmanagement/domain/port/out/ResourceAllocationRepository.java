@@ -9,5 +9,10 @@ import java.util.List;
  */
 public interface ResourceAllocationRepository {
 
+    /**
+     * Finds current allocations ordered for dashboard display.
+     *
+     * @return current resource allocations
+     */
     List<ResourceAllocation> findAll();
 }

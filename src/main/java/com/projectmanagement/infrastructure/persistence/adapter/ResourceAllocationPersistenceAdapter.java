@@ -16,6 +16,11 @@ public class ResourceAllocationPersistenceAdapter implements ResourceAllocationR
 
     private final SpringDataResourceAllocationRepository repository;
 
+    /**
+     * Creates a persistence adapter backed by Spring Data.
+     *
+     * @param repository resource allocation JPA repository
+     */
     public ResourceAllocationPersistenceAdapter(SpringDataResourceAllocationRepository repository) {
         this.repository = repository;
     }

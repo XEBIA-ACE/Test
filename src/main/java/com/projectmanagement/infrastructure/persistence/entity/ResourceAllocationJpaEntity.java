@@ -40,14 +40,22 @@ public class ResourceAllocationJpaEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public ResourceAllocationJpaEntity() {}
+    protected ResourceAllocationJpaEntity() {}
 
+    /** @return allocation identifier */
     public UUID getId() { return id; }
+    /** @return resource display name */
     public String getResourceName() { return resourceName; }
+    /** @return assigned role */
     public String getRole() { return role; }
+    /** @return project identifier */
     public UUID getProjectId() { return projectId; }
+    /** @return project display name */
     public String getProjectName() { return projectName; }
+    /** @return assigned hours */
     public int getAllocatedHours() { return allocatedHours; }
+    /** @return available hours */
     public int getCapacityHours() { return capacityHours; }
+    /** @return most recent source update */
     public Instant getUpdatedAt() { return updatedAt; }
 }

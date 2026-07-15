@@ -7,5 +7,10 @@ import com.projectmanagement.web.dto.ResourceAllocationDashboardResponse;
  */
 public interface DashboardUseCase {
 
+    /**
+     * Returns the current resource allocation snapshot.
+     *
+     * @return dashboard summary and allocation rows
+     */
     ResourceAllocationDashboardResponse getResourceAllocationDashboard();
 }

@@ -12,5 +12,10 @@ import java.util.UUID;
 public interface SpringDataResourceAllocationRepository
         extends JpaRepository<ResourceAllocationJpaEntity, UUID> {
 
+    /**
+     * Finds allocations in stable dashboard display order.
+     *
+     * @return allocations ordered by resource and project name
+     */
     List<ResourceAllocationJpaEntity> findAllByOrderByResourceNameAscProjectNameAsc();
 }

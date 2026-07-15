@@ -20,6 +20,12 @@ public record ResourceAllocationResponse(
         String utilizationStatus,
         Instant updatedAt) {
 
+    /**
+     * Maps a domain allocation to its dashboard representation.
+     *
+     * @param allocation domain allocation
+     * @return dashboard allocation response
+     */
     public static ResourceAllocationResponse from(ResourceAllocation allocation) {
         double utilization = allocation.utilizationPercentage();
         return new ResourceAllocationResponse(

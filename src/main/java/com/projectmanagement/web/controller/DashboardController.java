@@ -17,10 +17,20 @@ public class DashboardController {
 
     private final DashboardUseCase dashboardUseCase;
 
+    /**
+     * Creates a dashboard controller.
+     *
+     * @param dashboardUseCase dashboard query port
+     */
     public DashboardController(DashboardUseCase dashboardUseCase) {
         this.dashboardUseCase = dashboardUseCase;
     }
 
+    /**
+     * Returns a non-cacheable resource allocation snapshot.
+     *
+     * @return current dashboard response
+     */
     @GetMapping("/resource-allocation")
     public ResponseEntity<ResourceAllocationDashboardResponse> getResourceAllocation() {
         return ResponseEntity.ok()
