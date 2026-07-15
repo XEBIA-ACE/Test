@@ -29,6 +29,7 @@ It follows **hexagonal architecture** (ports & adapters) and integrates with ext
 - Coordinating with an external **Calendar** service to schedule project timelines
 - Notifying an external **Reporting** service of project state changes
 - Ensuring all project data is validated and stored securely in PostgreSQL
+- Providing a device-responsive dashboard for current resource allocation and capacity
 
 ---
 
@@ -126,6 +127,18 @@ The service is structured around **Hexagonal Architecture** (also known as Ports
 
    The service starts on `http://localhost:8080`.
 
+5. **Run the dashboard during frontend development**
+
+   ```bash
+   cd dashboard-ui
+   npm ci
+   npm run dev
+   ```
+
+   Vite serves the responsive dashboard on port `5173` and proxies API requests
+   to the Spring Boot service. The production Docker image builds and serves the
+   dashboard from `/dashboard/index.html`.
+
 ### Docker
 
 **Build the image:**
@@ -186,6 +199,16 @@ All configuration is driven by environment variables (see `.env.example`):
 | `POST` | `/api/v1/projects/{id}/archive` | Archive a project |
 | `DELETE` | `/api/v1/projects/{id}` | Delete a project |
 
+### Resource allocation dashboard
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/dashboard/resource-allocation` | Returns the latest allocation totals and per-project resource assignments |
+
+The response is marked `Cache-Control: no-store`. Dashboard clients request a
+fresh snapshot every five seconds so changes written by integrated project
+management tools are visible without a manual refresh.
+
 **Example — create a project:**
 
 ```bash
@@ -210,6 +233,12 @@ curl -X POST http://localhost:8080/api/v1/projects \
 
 # With coverage report
 ./mvnw verify
+
+# Dashboard typecheck, tests, and production build
+cd dashboard-ui
+npm run lint
+npm test
+npm run build
 ```
 
 ---
