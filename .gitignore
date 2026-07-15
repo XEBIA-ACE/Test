@@ -1,4 +1,5 @@
 build/
+target/
 
 *.ipr
 *.iml
@@ -6,3 +7,9 @@ build/
 
 .idea
 .gradle
+
+dashboard-ui/node_modules/
+dashboard-ui/dist/
+dashboard-ui/*.tsbuildinfo
+dashboard-ui/vite.config.js
+dashboard-ui/vite.config.d.ts

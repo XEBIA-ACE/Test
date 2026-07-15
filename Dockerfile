@@ -1,4 +1,15 @@
-# ─── Build stage ──────────────────────────────────────────────────────────────
+# ─── Dashboard build stage ────────────────────────────────────────────────────
+FROM node:20-alpine AS dashboard-build
+
+WORKDIR /workspace/dashboard-ui
+
+COPY dashboard-ui/package.json dashboard-ui/package-lock.json ./
+RUN npm ci
+
+COPY dashboard-ui .
+RUN npm run build
+
+# ─── Service build stage ──────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jdk-alpine AS build
 
 WORKDIR /workspace
@@ -13,6 +24,7 @@ RUN ./mvnw dependency:go-offline -B
 
 # Copy source and build
 COPY src src
+COPY --from=dashboard-build /workspace/dashboard-ui/dist src/main/resources/static/dashboard
 RUN ./mvnw package -DskipTests -B
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
