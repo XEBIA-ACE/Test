@@ -1,0 +1,27 @@
+name: CD Deploy
+'on':
+  workflow_run:
+    workflows:
+    - CI Build
+    types:
+    - completed
+    branches:
+    - main
+    - develop
+  workflow_dispatch: {}
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name
+      == 'workflow_dispatch' }}
+    uses: ./.github/workflows/cd-deploy-reusable.yml
+    with:
+      image_sha: ${{ github.event.workflow_run.head_sha || github.sha }}
+      health_check_url: ${{ vars.HEALTH_CHECK_URL }}
+      gcp_wif_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+      gcp_service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      gke_cluster: ${{ vars.GKE_CLUSTER }}
+      gke_zone: ${{ vars.GKE_ZONE }}
+    secrets: inherit
