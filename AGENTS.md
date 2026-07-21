@@ -1,172 +1,183 @@
-# AGENTS.md — Project Creation Service
+# AGENTS.md — User Account Management Service
 
 ## 1. Stack
 
 | Technology | Role |
 |---|---|
-| Java 21 (LTS) | Primary language |
-| Spring Boot 3.x | Application framework (web, validation, data) |
-| Spring Web MVC | REST API layer |
-| Spring Data JPA | ORM and repository abstraction |
-| Spring Validation (Jakarta) | Request/payload validation |
-| Spring Events / Spring Kafka (choose one) | Internal and outbound event processing |
-| PostgreSQL 15+ | Primary relational data store |
-| Flyway | Database schema migrations |
-| HikariCP | JDBC connection pooling (bundled with Spring Boot) |
-| MapStruct | DTO ↔ Entity mapping |
-| Lombok | Boilerplate reduction (getters, builders, etc.) |
-| JUnit 5 | Unit and integration test framework |
-| Mockito | Mocking for unit tests |
-| Testcontainers | Ephemeral PostgreSQL for integration tests |
-| AssertJ | Fluent test assertions |
-| JaCoCo | Code coverage enforcement |
-| Maven Wrapper (`mvnw`) | Reproducible builds |
-| Docker + Docker Compose | Containerisation and local dev environment |
-| GitHub Actions | CI pipeline |
+| **Node.js 20 LTS + Express 4.x** | Primary runtime and HTTP framework |
+| **TypeScript 5.x** | Type safety across all source files |
+| **PostgreSQL 15** | Primary persistence (user records, audit logs) |
+| **Prisma 5.x** | ORM, schema management, and migrations |
+| **Redis 7** | Session cache, idempotency keys, rate-limit counters |
+| **RabbitMQ 3.x** (or AWS SQS via `@aws-sdk/client-sqs`) | Async notification delivery (email/SMS events) |
+| **Passport.js + `openid-client`** | OAuth 2.0 / OpenID Connect integration |
+| **`bcryptjs`** | Password hashing (min 12 rounds) |
+| **`zod`** | Runtime input validation and sanitisation |
+| **`winston` + `winston-loki`** | Structured JSON logging and audit trail |
+| **`express-rate-limit`** | Brute-force and abuse protection |
+| **`helmet`** | HTTP security headers |
+| **`uuid` v4** | Surrogate primary keys |
+| **Jest 29 + Supertest** | Unit and integration testing |
+| **`@faker-js/faker`** | Test fixture generation |
+| **Docker + docker-compose** | Local environment orchestration |
+| **GitHub Actions** | CI pipeline |
+| **ESLint + Prettier** | Linting and formatting |
 
 ---
 
 ## 2. Project Structure
 
 ```
-project-creation-service/
-├── .github/
-│   └── workflows/
-│       └── ci.yml                        # GitHub Actions CI pipeline
-├── docker/
-│   └── postgres/
-│       └── init.sql                      # Optional seed/init SQL (non-migration)
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/example/projectcreation/
-│   │   │       ├── ProjectCreationApplication.java   # Spring Boot entry point
-│   │   │       ├── api/
-│   │   │       │   ├── controller/
-│   │   │       │   │   └── ProjectController.java    # REST endpoints
-│   │   │       │   ├── dto/
-│   │   │       │   │   ├── CreateProjectRequest.java # Inbound DTO (validated)
-│   │   │       │   │   └── ProjectResponse.java      # Outbound DTO
-│   │   │       │   └── mapper/
-│   │   │       │       └── ProjectMapper.java        # MapStruct interface
-│   │   │       ├── domain/
-│   │   │       │   ├── model/
-│   │   │       │   │   └── Project.java              # JPA entity
-│   │   │       │   ├── repository/
-│   │   │       │   │   └── ProjectRepository.java    # Spring Data JPA repo
-│   │   │       │   └── service/
-│   │   │       │       └── ProjectService.java       # Core business logic
-│   │   │       ├── event/
-│   │   │       │   ├── ProjectCreatedEvent.java      # Domain event record/class
-│   │   │       │   └── ProjectEventPublisher.java    # Publishes events (Spring/Kafka)
-│   │   │       ├── exception/
-│   │   │       │   ├── ProjectNotFoundException.java
-│   │   │       │   ├── ProjectValidationException.java
-│   │   │       │   └── GlobalExceptionHandler.java   # @RestControllerAdvice
-│   │   │       └── config/
-│   │   │           ├── DatabaseConfig.java           # DataSource / JPA tuning
-│   │   │           └── EventConfig.java              # Event broker config bean
-│   │   └── resources/
-│   │       ├── application.yml                       # Base configuration
-│   │       ├── application-local.yml                 # Local dev overrides
-│   │       ├── application-test.yml                  # Test profile config
-│   │       └── db/
-│   │           └── migration/
-│   │               └── V1__create_projects_table.sql # Flyway baseline migration
-│   └── test/
-│       ├── java/
-│       │   └── com/example/projectcreation/
-│       │       ├── api/
-│       │       │   └── controller/
-│       │       │       └── ProjectControllerTest.java        # MockMvc unit tests
-│       │       ├── domain/
-│       │       │   └── service/
-│       │       │       └── ProjectServiceTest.java           # Unit tests (Mockito)
-│       │       ├── event/
-│       │       │   └── ProjectEventPublisherTest.java        # Event publishing unit tests
-│       │       └── integration/
-│       │           └── ProjectCreationIntegrationTest.java   # Testcontainers full-stack
-│       └── resources/
-│           └── application-test.yml                  # Test datasource (Testcontainers)
-├── Dockerfile                            # Production image definition
-├── docker-compose.yml                    # Local dev: app + postgres
-├── docker-compose.test.yml               # Integration test environment
-├── pom.xml                               # Maven build descriptor
-├── mvnw / mvnw.cmd                       # Maven wrapper scripts
-├── .mvn/
-│   └── wrapper/
-│       └── maven-wrapper.properties
-├── tasks.md                              # Agent-generated task tracker (see §3)
+user-account-service/
+├── AGENTS.md                          # This file
+├── tasks.md                           # Agent-generated task checklist (created before coding)
+├── README.md                          # Human-readable service overview
+├── package.json
+├── tsconfig.json                      # Strict TypeScript config
+├── .eslintrc.json
+├── .prettierrc
+├── .env.example                       # All required env vars documented, no secrets
+├── .env                               # Local secrets — NEVER committed
 ├── .gitignore
-└── README.md
+├── docker-compose.yml                 # postgres, redis, rabbitmq, app
+├── Dockerfile                         # Multi-stage production image
+├── Dockerfile.dev                     # Dev image with hot-reload
+│
+├── prisma/
+│   ├── schema.prisma                  # Data model definitions
+│   └── migrations/                    # Auto-generated migration files
+│
+├── src/
+│   ├── main.ts                        # Entry point — bootstraps app and starts server
+│   ├── app.ts                         # Express app factory (no listen call)
+│   │
+│   ├── config/
+│   │   ├── index.ts                   # Centralised config loader (reads env vars via zod)
+│   │   ├── database.ts                # Prisma client singleton
+│   │   ├── redis.ts                   # Redis client singleton
+│   │   └── queue.ts                   # RabbitMQ/SQS client singleton
+│   │
+│   ├── modules/
+│   │   └── users/
+│   │       ├── users.router.ts        # Express Router — route definitions only
+│   │       ├── users.controller.ts    # Request/response handling, no business logic
+│   │       ├── users.service.ts       # Business logic, orchestration
+│   │       ├── users.repository.ts    # All Prisma queries — no logic
+│   │       ├── users.schemas.ts       # Zod schemas for request validation
+│   │       ├── users.types.ts         # TypeScript interfaces/types for this module
+│   │       └── users.errors.ts        # Domain-specific error classes
+│   │
+│   ├── modules/
+│   │   └── auth/
+│   │       ├── auth.router.ts         # OAuth callback and token endpoints
+│   │       ├── auth.controller.ts
+│   │       ├── auth.service.ts        # OIDC token exchange, session management
+│   │       └── auth.types.ts
+│   │
+│   ├── middleware/
+│   │   ├── errorHandler.ts            # Global Express error handler
+│   │   ├── requestLogger.ts           # Per-request structured logging
+│   │   ├── rateLimiter.ts             # express-rate-limit configuration
+│   │   ├── authenticate.ts            # JWT/Bearer token verification middleware
+│   │   └── validate.ts                # Zod schema validation middleware factory
+│   │
+│   ├── messaging/
+│   │   ├── publisher.ts               # Publishes events to queue
+│   │   ├── events.ts                  # Event type constants and payload interfaces
+│   │   └── handlers/
+│   │       └── notificationHandler.ts # Consumes notification events (if consumer lives here)
+│   │
+│   ├── audit/
+│   │   ├── auditLogger.ts             # Writes structured audit records to DB + log sink
+│   │   └── audit.types.ts             # AuditAction enum, AuditRecord interface
+│   │
+│   └── utils/
+│       ├── crypto.ts                  # bcrypt hash/compare wrappers
+│       ├── sanitise.ts                # Input normalisation helpers (trim, lowercase email)
+│       └── errors.ts                  # Base AppError class, HTTP error factories
+│
+└── tests/
+    ├── unit/
+    │   ├── users/
+    │   │   ├── users.service.test.ts
+    │   │   ├── users.repository.test.ts
+    │   │   └── users.schemas.test.ts
+    │   ├── auth/
+    │   │   └── auth.service.test.ts
+    │   ├── middleware/
+    │   │   └── validate.test.ts
+    │   └── utils/
+    │       ├── crypto.test.ts
+    │       └── sanitise.test.ts
+    ├── integration/
+    │   ├── users.api.test.ts           # Supertest against real Express app + test DB
+    │   └── auth.api.test.ts
+    ├── fixtures/
+    │   └── userFixtures.ts             # Faker-based test data factories
+    └── setup/
+        ├── globalSetup.ts              # Start test containers / run migrations
+        └── globalTeardown.ts           # Cleanup after test suite
 ```
 
 ---
 
 ## 3. Required Workflow
 
-The agent **must** follow these steps in order. Do not skip or reorder steps.
+The agent **must** follow these steps in order. Do not skip or reorder them.
 
-### Step 1 — Read All Specifications
-- Read every spec file provided (user stories, domain model, API contracts, event schemas).
-- Identify: entities, validation rules, event triggers, error scenarios, and acceptance criteria.
-- Do not write any code yet.
+### Step 1 — Read Specifications
+- Read all story-level spec documents provided in the task context before writing any code.
+- Identify: all API endpoints, request/response shapes, business rules, error conditions, and integration contracts.
 
 ### Step 2 — Create `tasks.md`
-Create `tasks.md` at the project root before writing any implementation code. Format:
+- Create `tasks.md` at the project root before touching any source file.
+- Structure it as a Markdown checklist grouped by: Setup, Database, Modules, Middleware, Messaging, Tests, Docker, CI.
+- Each task must be a single, verifiable action (e.g., `- [ ] Create Prisma User model with required fields`).
+- Do not proceed to Step 3 until `tasks.md` is complete.
 
-```markdown
-# tasks.md
-
-## Status Legend
-- [ ] Not started
-- [~] In progress
-- [x] Complete
-
-## Tasks
-- [ ] TASK-001: Scaffold Maven project structure and pom.xml
-- [ ] TASK-002: Configure application.yml (base, local, test profiles)
-- [ ] TASK-003: Write Flyway migration V1__create_projects_table.sql
-- [ ] TASK-004: Implement Project JPA entity
-- [ ] TASK-005: Implement ProjectRepository
-- [ ] TASK-006: Implement CreateProjectRequest DTO with Jakarta validation annotations
-- [ ] TASK-007: Implement ProjectResponse DTO
-- [ ] TASK-008: Implement ProjectMapper (MapStruct)
-- [ ] TASK-009: Implement ProjectService (validate → persist → publish)
-- [ ] TASK-010: Implement ProjectCreatedEvent
-- [ ] TASK-011: Implement ProjectEventPublisher
-- [ ] TASK-012: Implement ProjectController (POST /api/v1/projects)
-- [ ] TASK-013: Implement GlobalExceptionHandler
-- [ ] TASK-014: Write unit tests — ProjectServiceTest
-- [ ] TASK-015: Write unit tests — ProjectControllerTest
-- [ ] TASK-016: Write unit tests — ProjectEventPublisherTest
-- [ ] TASK-017: Write integration test — ProjectCreationIntegrationTest
-- [ ] TASK-018: Verify JaCoCo coverage ≥ 90%
-- [ ] TASK-019: Write Dockerfile
-- [ ] TASK-020: Write docker-compose.yml and docker-compose.test.yml
-- [ ] TASK-021: Write GitHub Actions ci.yml
-- [ ] TASK-022: Final build validation (`./mvnw verify`)
+### Step 3 — Environment and Tooling Setup
+```bash
+npm init -y
+npm install express prisma @prisma/client zod bcryptjs uuid passport openid-client \
+  amqplib winston helmet express-rate-limit redis ioredis
+npm install -D typescript ts-node-dev @types/express @types/node @types/bcryptjs \
+  @types/uuid @types/amqplib jest ts-jest supertest @types/supertest \
+  @faker-js/faker eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin \
+  prettier eslint-config-prettier
+npx prisma init
 ```
+- Copy `.env.example` and populate `.env` for local dev.
+- Initialise `tsconfig.json` with `strict: true`, `target: ES2022`, `module: CommonJS`.
 
-Update each task status as work progresses.
+### Step 4 — Database Schema
+- Define all models in `prisma/schema.prisma` before writing any service code.
+- Required models: `User`, `AuditLog`.
+- Run `npx prisma migrate dev --name init` to generate the first migration.
 
-### Step 3 — Implement
-- Implement tasks in the order listed in `tasks.md`.
-- Mark each task `[~]` when started, `[x]` when complete.
-- Commit logical units: one task or closely related tasks per commit.
-- Follow all conventions in §4.
+### Step 5 — Implement Modules (order matters)
+1. `src/config/` — all singletons first.
+2. `src/utils/` — shared utilities with no dependencies.
+3. `src/audit/` — audit logger (depends on DB config only).
+4. `src/messaging/` — publisher and event types.
+5. `src/modules/users/` — schemas → types → errors → repository → service → controller → router.
+6. `src/modules/auth/` — same layered order.
+7. `src/middleware/` — validate, authenticate, rateLimiter, requestLogger, errorHandler.
+8. `src/app.ts` — wire middleware and routers.
+9. `src/main.ts` — start server.
 
-### Step 4 — Test
-- Write tests before marking an implementation task complete.
-- Run unit tests after each service/controller is implemented: `./mvnw test`.
-- Run integration tests with: `./mvnw verify -Pfailsafe` (or equivalent Testcontainers profile).
-- Do not proceed to §5 until all tests pass.
+### Step 6 — Write Tests Alongside Each Module
+- Write unit tests immediately after implementing each file; do not batch all tests at the end.
+- Mock all external dependencies (Prisma, Redis, queue) using `jest.mock()`.
+- Write integration tests after all modules are complete.
 
-### Step 5 — Validate
-- Run `./mvnw verify` (compiles, tests, JaCoCo report).
-- Confirm JaCoCo line and branch coverage ≥ 90% for `com.example.projectcreation` packages.
-- Run `docker compose up --build` and confirm the service starts and responds to `GET /actuator/health`.
-- Mark all tasks `[x]` in `tasks.md`.
+### Step 7 — Validate
+```bash
+npm run lint          # zero errors required
+npm run type-check    # tsc --noEmit — zero errors required
+npm test              # all tests pass, coverage ≥ 90%
+docker-compose up --build   # all services start healthy
+```
+- Tick off every item in `tasks.md` before marking the task done.
 
 ---
 
@@ -175,178 +186,130 @@ Update each task status as work progresses.
 ### Naming
 | Artifact | Convention | Example |
 |---|---|---|
-| Packages | `lowercase.dot.separated` | `com.example.projectcreation.domain.service` |
-| Classes | `PascalCase` | `ProjectService` |
-| Methods / variables | `camelCase` | `createProject()`, `projectId` |
-| Constants | `UPPER_SNAKE_CASE` | `MAX_NAME_LENGTH` |
-| Database tables | `snake_case` | `projects`, `project_tags` |
-| Database columns | `snake_case` | `created_at`, `owner_id` |
-| REST endpoints | `kebab-case` nouns, versioned | `/api/v1/projects` |
-| Flyway migrations | `V{n}__{description}.sql` | `V1__create_projects_table.sql` |
-| DTOs | Suffix `Request` / `Response` | `CreateProjectRequest`, `ProjectResponse` |
-| Events | Suffix `Event` | `ProjectCreatedEvent` |
+| Files | `kebab-case` with module-type suffix | `users.service.ts` |
+| Classes | `PascalCase` | `UserService` |
+| Interfaces | `PascalCase` prefixed with `I` | `IUserRepository` |
+| Types | `PascalCase` | `CreateUserPayload` |
+| Functions/methods | `camelCase` | `createUser()` |
+| Constants | `SCREAMING_SNAKE_CASE` | `MAX_LOGIN_ATTEMPTS` |
+| Env vars | `SCREAMING_SNAKE_CASE` | `DATABASE_URL` |
+| Database tables | `snake_case` plural | `users`, `audit_logs` |
+| Database columns | `snake_case` | `created_at`, `email_verified` |
+| Queue event names | `SCREAMING_SNAKE_CASE` | `USER_REGISTERED`, `VERIFICATION_SENT` |
 
-### Architecture Rules
-- **Layered architecture**: `api` → `domain` → `repository`. No layer may import from a layer above it.
-- **DTOs never enter the domain layer.** `ProjectService` accepts and returns domain objects or primitives only. Mapping happens in the controller or a dedicated mapper.
-- **Entities are never serialised directly** to HTTP responses. Always map to a response DTO.
-- `ProjectService` is the single orchestration point: validate → persist → publish event.
-- `ProjectEventPublisher` is injected into `ProjectService`; it must be behind an interface to allow mocking.
-- Use `@Transactional` on service methods that write to the database. Event publishing must occur **after** the transaction commits (use `@TransactionalEventListener(phase = AFTER_COMMIT)` or equivalent).
+### Architecture Patterns
+- **Strict layering:** Router → Controller → Service → Repository. No layer may skip another.
+- **Repository pattern:** All database access lives exclusively in `*.repository.ts` files. Services never import Prisma directly.
+- **Dependency injection:** Pass dependencies (repository, publisher, logger) into service constructors; do not instantiate inside service files.
+- **No business logic in controllers:** Controllers only parse request, call service, and return response.
+- **Zod schemas are the single source of validation truth:** Define once in `*.schemas.ts`, reuse in middleware and service types via `z.infer<>`.
+- **Error handling:** Always throw typed errors (`AppError` subclasses). The global `errorHandler` middleware maps them to HTTP responses.
+- **Transactions:** Use `prisma.$transaction()` for any operation that writes to more than one table (e.g., create user + create audit log).
 
-### Spring Boot Specifics
-- Use constructor injection everywhere. No `@Autowired` on fields.
-- Annotate the entry point with `@SpringBootApplication` only; do not add `@ComponentScan` unless strictly necessary.
-- Use `@RestController` + `@RequestMapping` on controllers; never `@Controller` for REST endpoints.
-- Use `@Valid` on `@RequestBody` parameters to trigger Jakarta validation.
-- Return `ResponseEntity<ProjectResponse>` from controller methods with explicit HTTP status codes.
-- Use `@Value` or `@ConfigurationProperties` (preferred) for externalised config — never hardcode values.
+### Security Patterns
+- Sanitise all string inputs (trim, lowercase email) in `sanitise.ts` before validation.
+- Hash passwords with `bcrypt` at **minimum 12 rounds** — never store plaintext.
+- Never log passwords, tokens, or full credit-card/PII data. Log only user IDs and action names.
+- Validate and reject unexpected fields (use `zod.strict()` on request schemas).
+- Apply `helmet()` and `express-rate-limit` globally before any route handler.
 
-### Lombok
-- Use `@Builder`, `@Getter`, `@Setter` explicitly — avoid `@Data` on JPA entities (breaks `equals`/`hashCode`).
-- On JPA entities use `@EqualsAndHashCode(onlyExplicitlyIncluded = true)` with `@EqualsAndHashCode.Include` on the primary key.
-
-### Validation
-- All validation annotations go on `CreateProjectRequest` fields (e.g., `@NotBlank`, `@Size`, `@NotNull`).
-- Business-rule validation (e.g., duplicate project name) lives in `ProjectService` and throws `ProjectValidationException`.
-- `GlobalExceptionHandler` maps exceptions to structured `ProblemDetail` (RFC 7807) responses.
+### Style
+- All files use `async/await`; no raw `.then()` chains.
+- Explicit return types on all exported functions.
+- No `any` type — use `unknown` and narrow it.
+- Maximum function length: 40 lines. Extract helpers if exceeded.
+- One export per file for classes/services; named exports for utilities.
 
 ---
 
 ## 5. Testing
 
-### Test Categories
-
-| Category | Location | Tools | Scope |
-|---|---|---|---|
-| Unit | `src/test/.../domain/service/` | JUnit 5, Mockito, AssertJ | Service logic, pure functions |
-| Unit | `src/test/.../api/controller/` | JUnit 5, MockMvc, Mockito | HTTP layer, validation, status codes |
-| Unit | `src/test/.../event/` | JUnit 5, Mockito | Event publishing logic |
-| Integration | `src/test/.../integration/` | Testcontainers, Spring Boot Test | Full stack with real PostgreSQL |
-
-### Unit Test Standards
-```java
-// Naming: methodName_stateUnderTest_expectedBehaviour
-@Test
-void createProject_whenNameIsBlank_throwsProjectValidationException() { ... }
-
-// Structure: Arrange / Act / Assert (AAA) — always use comments
-@Test
-void createProject_withValidData_persistsAndPublishesEvent() {
-    // Arrange
-    var request = ...;
-    when(projectRepository.save(any())).thenReturn(savedProject);
-
-    // Act
-    var result = projectService.createProject(request);
-
-    // Assert
-    assertThat(result.getId()).isNotNull();
-    verify(eventPublisher).publish(any(ProjectCreatedEvent.class));
-}
+### Framework Setup
+```jsonc
+// jest.config.ts
+export default {
+  preset: "ts-jest",
+  testEnvironment: "node",
+  roots: ["<rootDir>/tests"],
+  globalSetup: "./tests/setup/globalSetup.ts",
+  globalTeardown: "./tests/setup/globalTeardown.ts",
+  coverageThreshold: {
+    global: { lines: 90, functions: 90, branches: 90, statements: 90 }
+  },
+  collectCoverageFrom: ["src/**/*.ts", "!src/main.ts", "!src/config/*.ts"]
+};
 ```
 
-### Integration Test Standards
-```java
-@SpringBootTest(webEnvironment = RANDOM_PORT)
-@Testcontainers
-@ActiveProfiles("test")
-class ProjectCreationIntegrationTest {
+### Unit Tests
+- **Location:** `tests/unit/<module>/`
+- **Mocking:** Use `jest.mock()` to mock `../../src/config/database` (Prisma), `ioredis`, and `amqplib`.
+- **Pattern:** Arrange → Act → Assert with descriptive `describe` / `it` blocks.
+- **Required coverage per file:**
+  - `users.service.ts` — all happy paths, all validation branches, all error conditions.
+  - `users.repository.ts` — mock Prisma, assert correct query parameters.
+  - `users.schemas.ts` — test valid and invalid inputs exhaustively using `zod.safeParse()`.
+  - `crypto.ts` — verify hash is not plaintext, verify compare returns correct boolean.
+  - `auditLogger.ts` — assert DB write is called with correct fields.
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");
-
-    @DynamicPropertySource
-    static void overrideProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-    }
-
-    // Tests use TestRestTemplate or MockMvc via @AutoConfigureMockMvc
-}
-```
-
-### Coverage Enforcement
-Add to `pom.xml` under the JaCoCo plugin:
-```xml
-<configuration>
-  <rules>
-    <rule>
-      <element>BUNDLE</element>
-      <limits>
-        <limit>
-          <counter>LINE</counter>
-          <value>COVEREDRATIO</value>
-          <minimum>0.90</minimum>
-        </limit>
-        <limit>
-          <counter>BRANCH</counter>
-          <value>COVEREDRATIO</value>
-          <minimum>0.90</minimum>
-        </limit>
-      </limits>
-    </rule>
-  </rules>
-</configuration>
-```
-
-Exclude generated MapStruct classes and Lombok-generated code from coverage:
-```xml
-<excludes>
-  <exclude>**/mapper/**MapperImpl.class</exclude>
-  <exclude>**/*Application.class</exclude>
-</excludes>
-```
+### Integration Tests
+- **Location:** `tests/integration/`
+- **Tool:** `supertest` against the Express app instance from `src/app.ts`.
+- **Database:** Use a dedicated test PostgreSQL database (`DATABASE_URL_TEST`). Run `prisma migrate deploy` in `globalSetup.ts`.
+- **Isolation:** Wrap each test in a transaction that is rolled back after the test, or truncate tables in `afterEach`.
+- **Required scenarios for `users.api.test.ts`:**
+  - `POST /users` — 201 on valid payload.
+  - `POST /users` — 409 on duplicate email.
+  - `POST /users` — 422 on missing required fields.
+  - `POST /users` — 422 on invalid email format.
+  - `POST /users` — 422 on weak password.
+  - `POST /users` — 429 on rate limit breach.
+  - Verify password is NOT returned in response body.
+  - Verify notification event is published to queue.
 
 ### Running Tests
 ```bash
-# Unit tests only
-./mvnw test
+npm test                          # run all tests
+npm run test:unit                 # unit only
+npm run test:integration          # integration only
+npm run test:coverage             # with coverage report
+```
 
-# All tests including integration (Testcontainers requires Docker)
-./mvnw verify
-
-# Coverage report (generated at target/site/jacoco/index.html)
-./mvnw verify && open target/site/jacoco/index.html
+Add to `package.json` scripts:
+```json
+{
+  "test": "jest",
+  "test:unit": "jest tests/unit",
+  "test:integration": "jest tests/integration",
+  "test:coverage": "jest --coverage",
+  "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
+  "type-check": "tsc --noEmit",
+  "build": "tsc -p tsconfig.json",
+  "dev": "ts-node-dev --respawn src/main.ts",
+  "start": "node dist/main.js"
+}
 ```
 
 ---
 
 ## 6. Docker & CI
 
-### Dockerfile
-Use a two-stage build to keep the production image minimal:
-
+### `Dockerfile` (multi-stage)
 ```dockerfile
-# Stage 1: Build
-FROM eclipse-temurin:21-jdk-alpine AS builder
+# ── Stage 1: Build ──────────────────────────────────────────────
+FROM node:20-alpine AS builder
 WORKDIR /app
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-RUN ./mvnw dependency:go-offline -q
-COPY src/ src/
-RUN ./mvnw package -DskipTests -q
+COPY package*.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+COPY prisma ./prisma
+RUN npm run build
+RUN npx prisma generate
 
-# Stage 2: Runtime
-FROM eclipse-temurin:21-jre-alpine AS runtime
+# ── Stage 2: Production ──────────────────────────────────────────
+FROM node:20-alpine AS production
+ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
-COPY --from=builder /app/target/*.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
-```
-
-### docker-compose.yml (local dev)
-```yaml
-version: "3.9"
-services:
-  postgres:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_DB: projectcreation
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: secret
-    ports:
-      - "5432:5432
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node
