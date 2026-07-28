@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my-rest-api-project"
+version = "1.0.0"
+description = "A REST API project"
+authors = [
+    { name = "Developer Name", email = "developer@example.com" }
+]
+requires-python = ">=3.8"
+
+[tool.poetry.dependencies]
+python = "~3.8"
+flask = "==3.0.0"
+sqlalchemy = "==2.0.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.1"
+
+[tool.poetry.scripts]
+start = "my_package.main:run"
