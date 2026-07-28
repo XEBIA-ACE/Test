@@ -1,0 +1,22 @@
+# Assuming there is no existing 'pyproject.toml' file in 'Base Source Code,' so generating a new file from scratch:
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "example_application"
+version = "0.1.0"
+description = "A sample project for async-enabled endpoints."
+authors = [
+    { name="Your Name", email="your.email@example.com" }
+]
+license = { text = "MIT" }
+dependencies = [
+    "Flask==3.0.0",
+    "SQLAlchemy==2.0.0",
+    # Add other dependencies here
+]
+
+[tool]
+# Add tool configurations here if necessary
