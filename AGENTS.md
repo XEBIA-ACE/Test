@@ -1,315 +1,361 @@
-# AGENTS.md — User Account Management Service
+# AGENTS.md — ProductCatalogService
+
+> **AI Agent Scaffold Specification**
+> Service: `ProductCatalogService` | Stack: Java · Spring Boot · Elasticsearch
+
+---
 
 ## 1. Stack
 
-| Technology | Role |
-|---|---|
-| **Node.js 20 LTS + Express 4.x** | Primary runtime and HTTP framework |
-| **TypeScript 5.x** | Type safety across all source files |
-| **PostgreSQL 15** | Primary persistence (user records, audit logs) |
-| **Prisma 5.x** | ORM, schema management, and migrations |
-| **Redis 7** | Session cache, idempotency keys, rate-limit counters |
-| **RabbitMQ 3.x** (or AWS SQS via `@aws-sdk/client-sqs`) | Async notification delivery (email/SMS events) |
-| **Passport.js + `openid-client`** | OAuth 2.0 / OpenID Connect integration |
-| **`bcryptjs`** | Password hashing (min 12 rounds) |
-| **`zod`** | Runtime input validation and sanitisation |
-| **`winston` + `winston-loki`** | Structured JSON logging and audit trail |
-| **`express-rate-limit`** | Brute-force and abuse protection |
-| **`helmet`** | HTTP security headers |
-| **`uuid` v4** | Surrogate primary keys |
-| **Jest 29 + Supertest** | Unit and integration testing |
-| **`@faker-js/faker`** | Test fixture generation |
-| **Docker + docker-compose** | Local environment orchestration |
-| **GitHub Actions** | CI pipeline |
-| **ESLint + Prettier** | Linting and formatting |
+| Technology | Version (minimum) | Role |
+|---|---|---|
+| Java | 21 (LTS) | Primary language |
+| Spring Boot | 3.3.x | Application framework, DI, auto-configuration |
+| Spring Data Elasticsearch | 5.3.x | Elasticsearch repository abstraction and client |
+| Elasticsearch | 8.x | Primary data store for product documents |
+| Elasticsearch Java Client | 8.x | Low-level and high-level REST client |
+| Gradle (Kotlin DSL) | 8.x | Build tool and dependency management |
+| JUnit 5 | 5.10.x | Unit and integration test framework |
+| Mockito | 5.x | Mocking framework for unit tests |
+| Testcontainers | 1.19.x | Elasticsearch container for integration tests |
+| MapStruct | 1.5.x | DTO ↔ document mapping |
+| Lombok | 1.18.x | Boilerplate reduction (getters, builders, etc.) |
+| Springdoc OpenAPI | 2.x | Auto-generated API documentation (Swagger UI) |
+| Micrometer + Prometheus | 1.13.x | Metrics and observability |
+| Checkstyle + SpotBugs | latest | Static analysis and code quality gates |
+| Docker / Docker Compose | 24.x / 2.x | Containerisation and local dev orchestration |
 
 ---
 
 ## 2. Project Structure
 
 ```
-user-account-service/
+product-catalog-service/
 ├── AGENTS.md                          # This file
-├── tasks.md                           # Agent-generated task checklist (created before coding)
-├── README.md                          # Human-readable service overview
-├── package.json
-├── tsconfig.json                      # Strict TypeScript config
-├── .eslintrc.json
-├── .prettierrc
-├── .env.example                       # All required env vars documented, no secrets
-├── .env                               # Local secrets — NEVER committed
-├── .gitignore
-├── docker-compose.yml                 # postgres, redis, rabbitmq, app
-├── Dockerfile                         # Multi-stage production image
-├── Dockerfile.dev                     # Dev image with hot-reload
-│
-├── prisma/
-│   ├── schema.prisma                  # Data model definitions
-│   └── migrations/                    # Auto-generated migration files
-│
+├── tasks.md                           # Agent-generated task tracker (created before coding)
+├── build.gradle.kts                   # Gradle build script (Kotlin DSL)
+├── settings.gradle.kts                # Project name and module declarations
+├── gradle/
+│   └── wrapper/
+│       ├── gradle-wrapper.jar
+│       └── gradle-wrapper.properties
+├── config/
+│   ├── checkstyle/
+│   │   └── checkstyle.xml             # Checkstyle ruleset (Google Java Style)
+│   └── spotbugs/
+│       └── exclude.xml                # SpotBugs exclusion filters
+├── docker/
+│   ├── Dockerfile                     # Production multi-stage image
+│   └── docker-compose.yml             # Local dev: app + Elasticsearch
+├── .github/
+│   └── workflows/
+│       └── ci.yml                     # GitHub Actions CI pipeline
 ├── src/
-│   ├── main.ts                        # Entry point — bootstraps app and starts server
-│   ├── app.ts                         # Express app factory (no listen call)
-│   │
-│   ├── config/
-│   │   ├── index.ts                   # Centralised config loader (reads env vars via zod)
-│   │   ├── database.ts                # Prisma client singleton
-│   │   ├── redis.ts                   # Redis client singleton
-│   │   └── queue.ts                   # RabbitMQ/SQS client singleton
-│   │
-│   ├── modules/
-│   │   └── users/
-│   │       ├── users.router.ts        # Express Router — route definitions only
-│   │       ├── users.controller.ts    # Request/response handling, no business logic
-│   │       ├── users.service.ts       # Business logic, orchestration
-│   │       ├── users.repository.ts    # All Prisma queries — no logic
-│   │       ├── users.schemas.ts       # Zod schemas for request validation
-│   │       ├── users.types.ts         # TypeScript interfaces/types for this module
-│   │       └── users.errors.ts        # Domain-specific error classes
-│   │
-│   ├── modules/
-│   │   └── auth/
-│   │       ├── auth.router.ts         # OAuth callback and token endpoints
-│   │       ├── auth.controller.ts
-│   │       ├── auth.service.ts        # OIDC token exchange, session management
-│   │       └── auth.types.ts
-│   │
-│   ├── middleware/
-│   │   ├── errorHandler.ts            # Global Express error handler
-│   │   ├── requestLogger.ts           # Per-request structured logging
-│   │   ├── rateLimiter.ts             # express-rate-limit configuration
-│   │   ├── authenticate.ts            # JWT/Bearer token verification middleware
-│   │   └── validate.ts                # Zod schema validation middleware factory
-│   │
-│   ├── messaging/
-│   │   ├── publisher.ts               # Publishes events to queue
-│   │   ├── events.ts                  # Event type constants and payload interfaces
-│   │   └── handlers/
-│   │       └── notificationHandler.ts # Consumes notification events (if consumer lives here)
-│   │
-│   ├── audit/
-│   │   ├── auditLogger.ts             # Writes structured audit records to DB + log sink
-│   │   └── audit.types.ts             # AuditAction enum, AuditRecord interface
-│   │
-│   └── utils/
-│       ├── crypto.ts                  # bcrypt hash/compare wrappers
-│       ├── sanitise.ts                # Input normalisation helpers (trim, lowercase email)
-│       └── errors.ts                  # Base AppError class, HTTP error factories
-│
-└── tests/
-    ├── unit/
-    │   ├── users/
-    │   │   ├── users.service.test.ts
-    │   │   ├── users.repository.test.ts
-    │   │   └── users.schemas.test.ts
-    │   ├── auth/
-    │   │   └── auth.service.test.ts
-    │   ├── middleware/
-    │   │   └── validate.test.ts
-    │   └── utils/
-    │       ├── crypto.test.ts
-    │       └── sanitise.test.ts
-    ├── integration/
-    │   ├── users.api.test.ts           # Supertest against real Express app + test DB
-    │   └── auth.api.test.ts
-    ├── fixtures/
-    │   └── userFixtures.ts             # Faker-based test data factories
-    └── setup/
-        ├── globalSetup.ts              # Start test containers / run migrations
-        └── globalTeardown.ts           # Cleanup after test suite
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/company/productcatalog/
+│   │   │       ├── ProductCatalogApplication.java        # @SpringBootApplication entry point
+│   │   │       ├── config/
+│   │   │       │   ├── ElasticsearchConfig.java          # ES client bean, index settings
+│   │   │       │   ├── OpenApiConfig.java                # Springdoc/OpenAPI configuration
+│   │   │       │   └── MetricsConfig.java                # Micrometer custom metrics
+│   │   │       ├── api/
+│   │   │       │   ├── controller/
+│   │   │       │   │   ├── ProductController.java        # REST endpoints: CRUD + search
+│   │   │       │   │   └── HealthController.java         # Custom health endpoint (optional)
+│   │   │       │   ├── dto/
+│   │   │       │   │   ├── request/
+│   │   │       │   │   │   ├── CreateProductRequest.java
+│   │   │       │   │   │   ├── UpdateProductRequest.java
+│   │   │       │   │   │   └── ProductSearchRequest.java # Filter/search params
+│   │   │       │   │   └── response/
+│   │   │       │   │       ├── ProductResponse.java
+│   │   │       │   │       └── ProductSearchResponse.java # Paginated search results
+│   │   │       │   └── mapper/
+│   │   │       │       └── ProductMapper.java            # MapStruct: DTO ↔ Document
+│   │   │       ├── domain/
+│   │   │       │   ├── document/
+│   │   │       │   │   └── ProductDocument.java          # @Document Elasticsearch entity
+│   │   │       │   └── model/
+│   │   │       │       └── Product.java                  # Core domain model (plain POJO)
+│   │   │       ├── repository/
+│   │   │       │   ├── ProductRepository.java            # ElasticsearchRepository interface
+│   │   │       │   └── ProductSearchRepository.java      # Custom query methods (NativeQuery)
+│   │   │       ├── service/
+│   │   │       │   ├── ProductService.java               # Interface
+│   │   │       │   └── impl/
+│   │   │       │       └── ProductServiceImpl.java       # Business logic implementation
+│   │   │       └── exception/
+│   │   │           ├── ProductNotFoundException.java
+│   │   │           ├── ProductAlreadyExistsException.java
+│   │   │           └── GlobalExceptionHandler.java       # @RestControllerAdvice
+│   │   └── resources/
+│   │       ├── application.yml                           # Base configuration
+│   │       ├── application-local.yml                     # Local dev overrides
+│   │       ├── application-test.yml                      # Test profile overrides
+│   │       └── elasticsearch/
+│   │           └── product-index-settings.json           # Index mappings and settings
+│   └── test/
+│       └── java/
+│           └── com/company/productcatalog/
+│               ├── api/
+│               │   └── controller/
+│               │       └── ProductControllerTest.java    # Unit: MockMvc slice tests
+│               ├── service/
+│               │   └── impl/
+│               │       └── ProductServiceImplTest.java   # Unit: Mockito-based tests
+│               ├── repository/
+│               │   └── ProductSearchRepositoryTest.java  # Integration: Testcontainers ES
+│               ├── integration/
+│               │   └── ProductCatalogIntegrationTest.java # Full-stack integration tests
+│               └── util/
+│                   └── TestDataFactory.java              # Shared test fixture builder
 ```
 
 ---
 
 ## 3. Required Workflow
 
-The agent **must** follow these steps in order. Do not skip or reorder them.
+The agent **must** follow these steps in order. Do not skip or reorder steps.
 
-### Step 1 — Read Specifications
-- Read all story-level spec documents provided in the task context before writing any code.
-- Identify: all API endpoints, request/response shapes, business rules, error conditions, and integration contracts.
+### Step 1 — Read and Understand Specifications
+- Read all story-level spec documents provided in the task context.
+- Identify all required endpoints, data models, search/filter behaviours, and non-functional requirements.
+- Note any Elasticsearch index mapping requirements (field types, analyzers, nested objects).
 
 ### Step 2 — Create `tasks.md`
-- Create `tasks.md` at the project root before touching any source file.
-- Structure it as a Markdown checklist grouped by: Setup, Database, Modules, Middleware, Messaging, Tests, Docker, CI.
-- Each task must be a single, verifiable action (e.g., `- [ ] Create Prisma User model with required fields`).
-- Do not proceed to Step 3 until `tasks.md` is complete.
+- Create `tasks.md` in the project root **before writing any code**.
+- Break the work into atomic, checkable tasks. Example format:
 
-### Step 3 — Environment and Tooling Setup
-```bash
-npm init -y
-npm install express prisma @prisma/client zod bcryptjs uuid passport openid-client \
-  amqplib winston helmet express-rate-limit redis ioredis
-npm install -D typescript ts-node-dev @types/express @types/node @types/bcryptjs \
-  @types/uuid @types/amqplib jest ts-jest supertest @types/supertest \
-  @faker-js/faker eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin \
-  prettier eslint-config-prettier
-npx prisma init
+```markdown
+# tasks.md
+
+## Setup
+- [ ] Initialise Gradle project with required dependencies
+- [ ] Create package structure
+
+## Domain
+- [ ] Define ProductDocument with Elasticsearch annotations
+- [ ] Define Product domain model
+
+## Repository Layer
+- [ ] Implement ProductRepository (Spring Data)
+- [ ] Implement ProductSearchRepository (NativeQuery)
+
+## Service Layer
+- [ ] Implement ProductServiceImpl with CRUD operations
+- [ ] Implement search and filtering logic
+
+## API Layer
+- [ ] Implement ProductController endpoints
+- [ ] Implement GlobalExceptionHandler
+
+## Testing
+- [ ] Unit tests: ProductServiceImplTest (≥90% coverage)
+- [ ] Unit tests: ProductControllerTest (MockMvc)
+- [ ] Integration tests: ProductSearchRepositoryTest (Testcontainers)
+- [ ] Integration tests: ProductCatalogIntegrationTest
+
+## Quality Gates
+- [ ] Checkstyle passes with zero violations
+- [ ] SpotBugs passes with zero HIGH/MEDIUM bugs
+- [ ] All tests green
+- [ ] Coverage report ≥90%
 ```
-- Copy `.env.example` and populate `.env` for local dev.
-- Initialise `tsconfig.json` with `strict: true`, `target: ES2022`, `module: CommonJS`.
 
-### Step 4 — Database Schema
-- Define all models in `prisma/schema.prisma` before writing any service code.
-- Required models: `User`, `AuditLog`.
-- Run `npx prisma migrate dev --name init` to generate the first migration.
+- Check off tasks as they are completed.
 
-### Step 5 — Implement Modules (order matters)
-1. `src/config/` — all singletons first.
-2. `src/utils/` — shared utilities with no dependencies.
-3. `src/audit/` — audit logger (depends on DB config only).
-4. `src/messaging/` — publisher and event types.
-5. `src/modules/users/` — schemas → types → errors → repository → service → controller → router.
-6. `src/modules/auth/` — same layered order.
-7. `src/middleware/` — validate, authenticate, rateLimiter, requestLogger, errorHandler.
-8. `src/app.ts` — wire middleware and routers.
-9. `src/main.ts` — start server.
+### Step 3 — Implement
+- Follow the project structure in Section 2 exactly.
+- Implement layers in this order: **Domain → Repository → Service → API → Exception Handling → Config**.
+- Commit logical units of work (one layer or feature at a time).
+- Apply all coding conventions from Section 4 throughout.
 
-### Step 6 — Write Tests Alongside Each Module
-- Write unit tests immediately after implementing each file; do not batch all tests at the end.
-- Mock all external dependencies (Prisma, Redis, queue) using `jest.mock()`.
-- Write integration tests after all modules are complete.
+### Step 4 — Test
+- Write unit tests alongside each implementation class (not after all code is done).
+- Run the full test suite after each layer is complete:
+  ```bash
+  ./gradlew test
+  ```
+- Run coverage report and confirm ≥90%:
+  ```bash
+  ./gradlew jacocoTestReport jacocoTestCoverageVerification
+  ```
 
-### Step 7 — Validate
-```bash
-npm run lint          # zero errors required
-npm run type-check    # tsc --noEmit — zero errors required
-npm test              # all tests pass, coverage ≥ 90%
-docker-compose up --build   # all services start healthy
-```
-- Tick off every item in `tasks.md` before marking the task done.
+### Step 5 — Validate
+- Run static analysis:
+  ```bash
+  ./gradlew checkstyleMain spotbugsMain
+  ```
+- Build the production Docker image and confirm it starts:
+  ```bash
+  docker build -f docker/Dockerfile -t product-catalog-service:local .
+  docker compose -f docker/docker-compose.yml up --wait
+  ```
+- Confirm Swagger UI loads at `http://localhost:8080/swagger-ui.html`.
+- Confirm Actuator health at `http://localhost:8080/actuator/health` returns `UP`.
+- Mark all `tasks.md` items as complete before declaring work done.
 
 ---
 
 ## 4. Coding Conventions
 
+### General
+- Use **Java 21** features where appropriate: records for DTOs, sealed interfaces for domain variants, pattern matching.
+- Follow **Google Java Style Guide** (enforced by Checkstyle).
+- Maximum line length: **120 characters**.
+- All public classes, methods, and fields must have **Javadoc**.
+
 ### Naming
 | Artifact | Convention | Example |
 |---|---|---|
-| Files | `kebab-case` with module-type suffix | `users.service.ts` |
-| Classes | `PascalCase` | `UserService` |
-| Interfaces | `PascalCase` prefixed with `I` | `IUserRepository` |
-| Types | `PascalCase` | `CreateUserPayload` |
-| Functions/methods | `camelCase` | `createUser()` |
-| Constants | `SCREAMING_SNAKE_CASE` | `MAX_LOGIN_ATTEMPTS` |
-| Env vars | `SCREAMING_SNAKE_CASE` | `DATABASE_URL` |
-| Database tables | `snake_case` plural | `users`, `audit_logs` |
-| Database columns | `snake_case` | `created_at`, `email_verified` |
-| Queue event names | `SCREAMING_SNAKE_CASE` | `USER_REGISTERED`, `VERIFICATION_SENT` |
+| Classes | `PascalCase` | `ProductServiceImpl` |
+| Methods / variables | `camelCase` | `findByCategory` |
+| Constants | `UPPER_SNAKE_CASE` | `DEFAULT_PAGE_SIZE` |
+| Elasticsearch index | `kebab-case` | `product-catalog` |
+| REST endpoints | `kebab-case` plural nouns | `/api/v1/products` |
+| Application properties | `kebab-case` | `elasticsearch.connection-timeout` |
+| Test classes | `<Subject>Test` | `ProductServiceImplTest` |
 
-### Architecture Patterns
-- **Strict layering:** Router → Controller → Service → Repository. No layer may skip another.
-- **Repository pattern:** All database access lives exclusively in `*.repository.ts` files. Services never import Prisma directly.
-- **Dependency injection:** Pass dependencies (repository, publisher, logger) into service constructors; do not instantiate inside service files.
-- **No business logic in controllers:** Controllers only parse request, call service, and return response.
-- **Zod schemas are the single source of validation truth:** Define once in `*.schemas.ts`, reuse in middleware and service types via `z.infer<>`.
-- **Error handling:** Always throw typed errors (`AppError` subclasses). The global `errorHandler` middleware maps them to HTTP responses.
-- **Transactions:** Use `prisma.$transaction()` for any operation that writes to more than one table (e.g., create user + create audit log).
+### Spring Boot Patterns
+- Use **constructor injection** exclusively — no `@Autowired` on fields.
+- Annotate service interfaces with `@Transactional` at the method level where applicable.
+- Use `@RestController` + `@RequestMapping` (never `@Controller` for REST).
+- Return `ResponseEntity<T>` from all controller methods for explicit HTTP status control.
+- Use `@Validated` on controllers and `@Valid` on request body parameters.
 
-### Security Patterns
-- Sanitise all string inputs (trim, lowercase email) in `sanitise.ts` before validation.
-- Hash passwords with `bcrypt` at **minimum 12 rounds** — never store plaintext.
-- Never log passwords, tokens, or full credit-card/PII data. Log only user IDs and action names.
-- Validate and reject unexpected fields (use `zod.strict()` on request schemas).
-- Apply `helmet()` and `express-rate-limit` globally before any route handler.
+### Elasticsearch Patterns
+- Define all index mappings in `product-index-settings.json`; do **not** rely on dynamic mapping.
+- Use `@Document(indexName = "product-catalog", createIndex = false)` — index creation is managed externally.
+- Use `NativeQuery` with `QueryBuilders` for complex search/filter operations.
+- Implement pagination using Spring Data's `Pageable` — default page size 20, max 100.
+- Use `keyword` sub-fields for exact-match filtering alongside `text` fields for full-text search.
 
-### Style
-- All files use `async/await`; no raw `.then()` chains.
-- Explicit return types on all exported functions.
-- No `any` type — use `unknown` and narrow it.
-- Maximum function length: 40 lines. Extract helpers if exceeded.
-- One export per file for classes/services; named exports for utilities.
+### DTO and Mapping
+- Use **Java records** for immutable request/response DTOs.
+- Use **MapStruct** for all DTO ↔ Document conversions; no manual mapping in service or controller.
+- Never expose `ProductDocument` directly from the API layer.
+
+### Error Handling
+- All exceptions extend a base `ProductCatalogException` (runtime).
+- `GlobalExceptionHandler` must return RFC 7807 Problem Detail responses (`ProblemDetail`).
+- HTTP status mapping: `404` for not found, `409` for conflicts, `400` for validation errors, `500` for unexpected errors.
+
+### Logging
+- Use **SLF4J** with Logback (Spring Boot default).
+- Log at `INFO` for significant business events, `DEBUG` for query details, `ERROR` with stack traces only for unexpected exceptions.
+- Never log sensitive product pricing or PII data.
 
 ---
 
 ## 5. Testing
 
-### Framework Setup
-```jsonc
-// jest.config.ts
-export default {
-  preset: "ts-jest",
-  testEnvironment: "node",
-  roots: ["<rootDir>/tests"],
-  globalSetup: "./tests/setup/globalSetup.ts",
-  globalTeardown: "./tests/setup/globalTeardown.ts",
-  coverageThreshold: {
-    global: { lines: 90, functions: 90, branches: 90, statements: 90 }
-  },
-  collectCoverageFrom: ["src/**/*.ts", "!src/main.ts", "!src/config/*.ts"]
-};
+### Unit Tests
+- **Framework:** JUnit 5 + Mockito
+- **Controller tests:** Use `@WebMvcTest(ProductController.class)` with `MockMvc`; mock the service layer.
+- **Service tests:** Use `@ExtendWith(MockitoExtension.class)`; mock all repository dependencies.
+- **Coverage target:** ≥ **90%** line and branch coverage (enforced by JaCoCo).
+- **Naming:** Test methods use `methodName_scenario_expectedResult` pattern.
+
+```java
+// Example test method naming
+@Test
+void findById_whenProductExists_returnsProductResponse() { ... }
+
+@Test
+void findById_whenProductNotFound_throwsProductNotFoundException() { ... }
 ```
 
-### Unit Tests
-- **Location:** `tests/unit/<module>/`
-- **Mocking:** Use `jest.mock()` to mock `../../src/config/database` (Prisma), `ioredis`, and `amqplib`.
-- **Pattern:** Arrange → Act → Assert with descriptive `describe` / `it` blocks.
-- **Required coverage per file:**
-  - `users.service.ts` — all happy paths, all validation branches, all error conditions.
-  - `users.repository.ts` — mock Prisma, assert correct query parameters.
-  - `users.schemas.ts` — test valid and invalid inputs exhaustively using `zod.safeParse()`.
-  - `crypto.ts` — verify hash is not plaintext, verify compare returns correct boolean.
-  - `auditLogger.ts` — assert DB write is called with correct fields.
-
 ### Integration Tests
-- **Location:** `tests/integration/`
-- **Tool:** `supertest` against the Express app instance from `src/app.ts`.
-- **Database:** Use a dedicated test PostgreSQL database (`DATABASE_URL_TEST`). Run `prisma migrate deploy` in `globalSetup.ts`.
-- **Isolation:** Wrap each test in a transaction that is rolled back after the test, or truncate tables in `afterEach`.
-- **Required scenarios for `users.api.test.ts`:**
-  - `POST /users` — 201 on valid payload.
-  - `POST /users` — 409 on duplicate email.
-  - `POST /users` — 422 on missing required fields.
-  - `POST /users` — 422 on invalid email format.
-  - `POST /users` — 422 on weak password.
-  - `POST /users` — 429 on rate limit breach.
-  - Verify password is NOT returned in response body.
-  - Verify notification event is published to queue.
+- **Framework:** Testcontainers with `elasticsearch:8.13.0` Docker image.
+- Annotate integration test classes with `@SpringBootTest` + `@Testcontainers`.
+- Use `@DynamicPropertySource` to inject the Testcontainers Elasticsearch URL into Spring context.
+- Integration tests must cover: index creation, document indexing, full-text search, filter queries, and pagination.
+
+### Test Data
+- All test fixtures are created via `TestDataFactory` utility class — no inline object construction in test methods.
+- Use `@BeforeEach` to reset Elasticsearch index state between tests.
 
 ### Running Tests
 ```bash
-npm test                          # run all tests
-npm run test:unit                 # unit only
-npm run test:integration          # integration only
-npm run test:coverage             # with coverage report
+# All tests
+./gradlew test
+
+# Unit tests only (excludes integration tag)
+./gradlew test -PexcludeTags=integration
+
+# Integration tests only
+./gradlew test -PincludeTags=integration
+
+# Coverage report (output: build/reports/jacoco/test/html/index.html)
+./gradlew jacocoTestReport
+
+# Enforce coverage threshold (fails build if <90%)
+./gradlew jacocoTestCoverageVerification
 ```
 
-Add to `package.json` scripts:
-```json
-{
-  "test": "jest",
-  "test:unit": "jest tests/unit",
-  "test:integration": "jest tests/integration",
-  "test:coverage": "jest --coverage",
-  "lint": "eslint 'src/**/*.ts' 'tests/**/*.ts'",
-  "type-check": "tsc --noEmit",
-  "build": "tsc -p tsconfig.json",
-  "dev": "ts-node-dev --respawn src/main.ts",
-  "start": "node dist/main.js"
+### JaCoCo Configuration (in `build.gradle.kts`)
+```kotlin
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.90".toBigDecimal()
+            }
+        }
+    }
 }
+// Exclude: generated mapper code, config classes, Application entry point
 ```
 
 ---
 
 ## 6. Docker & CI
 
-### `Dockerfile` (multi-stage)
-```dockerfile
-# ── Stage 1: Build ──────────────────────────────────────────────
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY tsconfig.json ./
-COPY src ./src
-COPY prisma ./prisma
-RUN npm run build
-RUN npx prisma generate
+### Dockerfile (`docker/Dockerfile`)
+Use a **multi-stage build**:
 
-# ── Stage 2: Production ──────────────────────────────────────────
-FROM node:20-alpine AS production
-ENV NODE_ENV=production
-WORKDIR /app
+```dockerfile
+# Stage 1: Build
+FROM eclipse-temurin:21-jdk-alpine AS builder
+WORKDIR /workspace
+COPY gradle/ gradle/
+COPY gradlew settings.gradle.kts build.gradle.kts ./
+RUN ./gradlew dependencies --no-daemon          # cache dependency layer
+COPY src/ src/
+RUN ./gradlew bootJar --no-daemon -x test
+
+# Stage 2: Runtime
+FROM eclipse-temurin:21-jre-alpine AS runtime
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node
+WORKDIR /app
+COPY --from=builder /workspace/build/libs/*.jar app.jar
+USER appuser
+EXPOSE 8080
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", \
+            "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
+```
+
+### `docker/docker-compose.yml`
+```yaml
+services:
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  product-catalog-service:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
